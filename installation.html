@@ -1,0 +1,176 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation guidelines &mdash; WIFA 1.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=56dcb7b8"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="How to simulate" href="examples.html" />
+    <link rel="prev" title="Welcome to WIFA’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            WIFA
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation guidelines</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#windio">WindIO</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#foxes">FOXES</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#code-saturne-and-salome">code_saturne and salome</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pywake">Pywake</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#wayve">WAYVE</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">How to simulate</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="API.html">WIFA</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">WIFA</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation guidelines</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/installation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installation-guidelines">
+<h1>Installation guidelines<a class="headerlink" href="#installation-guidelines" title="Link to this heading"></a></h1>
+<p>To use WIFA, there are few prerequisites that need to be installed.</p>
+<p>The prerequisites are the embeded tools, their required packages, and a windIO fork containing the modifications that were necessary to parameterize the wind farm flow. These will ultimately be merged to the main windIO package.</p>
+<p>Except for windio, each of the modelling tools can be installed independently. If you don’t install one of them, you simply need to comment the concerned “import” in the  <a class="reference external" href="https://github.com/EUFLOW/WIFA/-/blob/main/flow_api/main_api.py?ref_type=heads">main_api script</a> after copying it for use.</p>
+<section id="windio">
+<h2>WindIO<a class="headerlink" href="#windio" title="Link to this heading"></a></h2>
+<p>Clone <a class="reference external" href="https://github.com/EUFLOW/windIO">this windIO fork</a>, and add it to your python path.</p>
+</section>
+<section id="foxes">
+<h2>FOXES<a class="headerlink" href="#foxes" title="Link to this heading"></a></h2>
+<p>The installation of <em>FOXES</em> is described <a class="reference external" href="https://fraunhoferiwes.github.io/foxes.docs/installation.html">here in the documentation</a>.</p>
+<p>For the latest relase, run (for <cite>conda</cite> consult the link above):</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">pip install foxes</span>
+</pre></div>
+</div>
+<p>For the latest developments, clone and install the <em>dev</em>
+branch from <a class="reference external" href="https://github.com/FraunhoferIWES/foxes">github</a>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">git clone git@github.com:FraunhoferIWES/foxes.git@dev</span>
+<span class="go">cd foxes</span>
+<span class="go">pip install -e .</span>
+</pre></div>
+</div>
+</section>
+<section id="code-saturne-and-salome">
+<h2>code_saturne and salome<a class="headerlink" href="#code-saturne-and-salome" title="Link to this heading"></a></h2>
+<p>code_saturne and salome should be installed independantly, prior to using code_saturne through the FLOW api.</p>
+<p>code_saturne, source code and prerequisites for version 8.0 can be found <a class="reference external" href="https://www.code-saturne.org/cms/web/Download/">using this link</a>, namely the <a class="reference external" href="https://github.com/code-saturne/code_saturne/">github repository</a> with a python script for semi-automated installation with detailed instructions.</p>
+<p>For salome, it can be built in two ways:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>stand alone <a class="reference external" href="https://www.salome-platform.org/?page_id=2430/">direct download</a></p></li>
+<li><p>building the <a class="reference external" href="https://github.com/code-saturne/salome_cfd_extensions/">salome_cfd extension</a></p></li>
+</ul>
+</div></blockquote>
+<p>Once installed, you will need to specify to the flow api where the executables are. This can be done by modifying flow_api/cs_api folder/ __init__.py script as follows:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">#</span>required:<span class="w"> </span>add<span class="w"> </span>your<span class="w"> </span>path<span class="w"> </span>to<span class="w"> </span>cs<span class="w"> </span>exe
+<span class="go">cs_exe_path = &quot;$YOUR_PATH_TO/code_saturne&quot;</span>
+<span class="gp">#</span>required:<span class="w"> </span>add<span class="w"> </span>your<span class="w"> </span>path<span class="w"> </span>to<span class="w"> </span>salome<span class="w"> </span>exe
+<span class="go">salome_exe_path = &quot;$YOUR_PATH_TO/salome&quot;</span>
+</pre></div>
+</div>
+<p>This script also allows to define different environment commands to allow flexibility. For example, if a conda enviroment is necessary on your cluster to be able to run salome, this can be added as:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">#</span>optional<span class="w"> </span>:<span class="w"> </span>add<span class="w"> </span>any<span class="w"> </span>environment<span class="w"> </span>that<span class="w"> </span>must<span class="w"> </span>be<span class="w"> </span>loaded<span class="w"> </span>to<span class="w"> </span>run<span class="w"> </span>salome
+<span class="go">salome_env_command = &quot;module load Miniforge3 &amp;&amp; conda activate myenv&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="pywake">
+<h2>Pywake<a class="headerlink" href="#pywake" title="Link to this heading"></a></h2>
+</section>
+<section id="wayve">
+<h2>WAYVE<a class="headerlink" href="#wayve" title="Link to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to WIFA’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="examples.html" class="btn btn-neutral float-right" title="How to simulate" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, EU-FLOW.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

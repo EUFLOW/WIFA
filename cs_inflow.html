@@ -1,0 +1,213 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inflow Boundary Conditions &mdash; WIFA 1.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=56dcb7b8"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="PyWakeEllipSys" href="pywake_ellipsys.html" />
+    <link rel="prev" title="Geometry and Mesh" href="cs_mesh.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            WIFA
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation guidelines</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">How to simulate</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="API.html">WIFA</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="InputsOutputs.html">Inputs and Outputs - WindIO</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="Tools.html">Tools</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pywake.html">PyWake</a></li>
+<li class="toctree-l3"><a class="reference internal" href="foxes.html">FOXES</a></li>
+<li class="toctree-l3"><a class="reference internal" href="wayve.html">WAYVE</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="codesaturne.html">code_saturne</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="cs_equations.html">Governing Equations for 3D atmospheric flow</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cs_turbines.html">Turbines representation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cs_mesh.html">Geometry and Mesh</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Inflow Boundary Conditions</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pywake_ellipsys.html">PyWakeEllipSys</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">WIFA</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="API.html">WIFA</a></li>
+          <li class="breadcrumb-item"><a href="Tools.html">Tools</a></li>
+          <li class="breadcrumb-item"><a href="codesaturne.html">code_saturne</a></li>
+      <li class="breadcrumb-item active">Inflow Boundary Conditions</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/cs_inflow.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="inflow-boundary-conditions">
+<h1>Inflow Boundary Conditions<a class="headerlink" href="#inflow-boundary-conditions" title="Link to this heading"></a></h1>
+<p>Inflow refers to the meteorological profiles provided as boundary and initial conditions for the wind farm simulation. It consists of velocity (components <span class="math notranslate nohighlight">\(u\)</span> and <span class="math notranslate nohighlight">\(v\)</span>), temperature, turbulent kinetic energy <span class="math notranslate nohighlight">\(k\)</span> and dissipation rate of turbulent kinetic energy <span class="math notranslate nohighlight">\(\varepsilon\)</span> profiles. Inflow conditions are determined by the data given as an input.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Considering the impact of the methodology used to generate inflow profiles on the model results, the user should be carefull about input data and parameters</p>
+</div>
+<p>A summary of the inflow profile methodology is summarized in the following figure (more details are given in the next sections).</p>
+<figure class="align-default" id="id3">
+<img alt="_images/cs_inflow_Ms4Release.drawio.png" src="_images/cs_inflow_Ms4Release.drawio.png" />
+<figcaption>
+<p><span class="caption-text">Schematic representation of the choice of inflow method as a function of input parameters</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<section id="input-data-at-hub-height-or-at-a-reference-altitude">
+<h2>Input data at hub height or at a reference altitude<a class="headerlink" href="#input-data-at-hub-height-or-at-a-reference-altitude" title="Link to this heading"></a></h2>
+<p>If input data contains only values at hub height or at a reference height (absence of <code class="docutils literal notranslate"><span class="pre">heights</span></code> dimension in input data), synthetic meteorological profiles are constructed. In the case of minimal input data available, namely <code class="docutils literal notranslate"><span class="pre">wind_speed</span></code> and <code class="docutils literal notranslate"><span class="pre">wind_direction</span></code>, default values for roughness <code class="docutils literal notranslate"><span class="pre">z0</span></code>, Monin-Obukhov length <code class="docutils literal notranslate"><span class="pre">LMO</span></code> and ground temperature <code class="docutils literal notranslate"><span class="pre">T0</span></code> are chosen. Default values are shown below.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Default value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">z0</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(0.0001\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">LMO</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(\infty\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">T0</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(293.15K\)</span></p></td>
+</tr>
+</tbody>
+</table>
+<p>In that case, profiles from Monin-Obukhov similarity theory matching the <code class="docutils literal notranslate"><span class="pre">wind_speed</span></code> value at hub height are prescribed in a <span class="math notranslate nohighlight">\(800m\)</span> high numerical domain with an angle corresponding to the <code class="docutils literal notranslate"><span class="pre">wind_direction</span></code>, the enrgy equation is turned off and coriolis force is not accounted for. If input data contains <code class="docutils literal notranslate"><span class="pre">z0</span></code>, <code class="docutils literal notranslate"><span class="pre">LMO</span></code> or <code class="docutils literal notranslate"><span class="pre">T0</span></code>, default values are replaced by input data.</p>
+<p>If input data contains at least one variable describing the upper boundary layer and free atmosphere (<code class="docutils literal notranslate"><span class="pre">ABL_height</span></code>, <code class="docutils literal notranslate"><span class="pre">capping_inversion_thickness</span></code>, <code class="docutils literal notranslate"><span class="pre">capping_inversion_strength</span></code>, or <code class="docutils literal notranslate"><span class="pre">lapse_rate</span></code>), the temperature profile above the boundary layer height is constructed based on the parameters provided according to the following figure.</p>
+<figure class="align-default" id="id4">
+<a class="reference internal image-reference" href="_images/temp_profile.png"><img alt="_images/temp_profile.png" src="_images/temp_profile.png" style="width: 397.0px; height: 402.0px;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Potential temperature profile above the boundary layer height <span class="math notranslate nohighlight">\(H\)</span> (<code class="docutils literal notranslate"><span class="pre">ABL_height</span></code>) with <span class="math notranslate nohighlight">\(\Delta h\)</span> corresponding to <code class="docutils literal notranslate"><span class="pre">capping_inversion_thickness</span></code>, <span class="math notranslate nohighlight">\(\Delta \theta\)</span> to <code class="docutils literal notranslate"><span class="pre">capping_inversion_strength</span></code> and <span class="math notranslate nohighlight">\(\Gamma\)</span> to <code class="docutils literal notranslate"><span class="pre">lapse_rate</span></code>.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>If some of the parameters are not present, default values shown below are used to construct the profile.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Default value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ABL_height</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(1500m\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">capping_inversion_thickness</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(300m\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">capping_inversion_strength</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(2K\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">lapse_rate</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(1K/km\)</span></p></td>
+</tr>
+</tbody>
+</table>
+<p>Below the boundary layer height, depending on the Monin-Obukhov length <code class="docutils literal notranslate"><span class="pre">LMO</span></code>, potential temperature is constant for neutral boundary layer (either no <code class="docutils literal notranslate"><span class="pre">LMO</span></code> in input data or <code class="docutils literal notranslate"><span class="pre">LMO</span></code> superior to <span class="math notranslate nohighlight">\(1000m\)</span>) or calculated using a blending between Monin-Obukhov similarity theory in the surface layer and Nieuwstadt (1984) <span id="id1">[<a class="reference internal" href="references.html#id8" title="F. T. M. Nieuwstadt. The turbulent structure of the stable, nocturnal boundary layer. Journal of Atmospheric Sciences, 41(14):2202-2216, 1984. doi:https://doi.org/10.1175/1520-0469(1984)041&lt;2202:TTSOTS&gt;2.0.CO;2.">1</a>]</span> theory toward the top of the boundary layer for positive <code class="docutils literal notranslate"><span class="pre">LMO</span></code> lower than <span class="math notranslate nohighlight">\(1000m\)</span>. Negative <code class="docutils literal notranslate"><span class="pre">LMO</span></code> corresponding to unstable atmospheric conditions are not supported with this methodology.</p>
+<p>For all the cases with capping inversion, a precursor simulation consisting in a 1D bi-periodic <span class="math notranslate nohighlight">\(26km\)</span> high column model is run prior to the wind farm simulation in order to have converged profiles that will be maintained in the wind farm numerical domain. This ensure to better control the incoming flow upstream of the farm. In the precursor simulation, Coriolis force is included with a forcing on the constant geostrophic wind speed above the boundary atmospheric layer height and energy equation is turned off. Wind speed and turbulent quantity profiles adapt to the imposed temperature.</p>
+<p>For neutral atmospheric condtitions, the column model is initialized with constant velocity, TKE and dissipation rate of TKE profiles. An iterative method is implemented to let the profile converged and match the target velocity at the reference height from the input data.</p>
+<p>For stable atmospheric conditions, the column model is initialized with velocity, TKE and dissipation rate of TKE profiles from the same theoretical framework used to build the temperature profile (blending between Monin-Obukhov similarity theory in the surface layer and Nieuwstadt (1984) <span id="id2">[<a class="reference internal" href="references.html#id8" title="F. T. M. Nieuwstadt. The turbulent structure of the stable, nocturnal boundary layer. Journal of Atmospheric Sciences, 41(14):2202-2216, 1984. doi:https://doi.org/10.1175/1520-0469(1984)041&lt;2202:TTSOTS&gt;2.0.CO;2.">1</a>]</span> theory toward the top of the boundary layer).</p>
+<p>Once converged, the profiles issued from the precursor simulation are given as boundary conditions for the wind farm simulation. In that case, the numerical domain is <span class="math notranslate nohighlight">\(25km\)</span> high. Damping layers are implemented toward the top and lateral boundaries of the numerical domain to absorb gravity waves generated by the interaction between the wind farm and the stratified atmosphere. Energy equation and Coriolis force are turned on.</p>
+</section>
+<section id="vertical-profiles-as-input-data">
+<h2>Vertical profiles as input data<a class="headerlink" href="#vertical-profiles-as-input-data" title="Link to this heading"></a></h2>
+<p>Vertical profiles are given as input data if the <code class="docutils literal notranslate"><span class="pre">heights</span></code> dimension is present in the input data. If the <code class="docutils literal notranslate"><span class="pre">potential_temperature</span></code> variable is present in input data, vertical profiles are extruded to reach <span class="math notranslate nohighlight">\(26km\)</span> and directly imposed as boundary conditions for the wind farm simulation with energy equation turned off and Coriolis force included.</p>
+<p>If the <code class="docutils literal notranslate"><span class="pre">potential_temperature</span></code> variable is not present in the input data, <code class="docutils literal notranslate"><span class="pre">wind_speed</span></code> and <code class="docutils literal notranslate"><span class="pre">wind_direction</span></code> are interpolated at hub height and inflow data follows the process from the previous section to generate the inflow.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="cs_mesh.html" class="btn btn-neutral float-left" title="Geometry and Mesh" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pywake_ellipsys.html" class="btn btn-neutral float-right" title="PyWakeEllipSys" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, EU-FLOW.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
