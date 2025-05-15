@@ -1,0 +1,3 @@
+name: FLOW UQ vnv study on toy problem, 4 WT Wind Farm
+wind_resource:
+    !include "Stochastic_atHubHeight.nc"

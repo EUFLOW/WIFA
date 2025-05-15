@@ -1,0 +1,26 @@
+name: FLOW UQ vnv study on toy problem, 4 WT Wind Farm
+layouts:
+    - coordinates:
+          x:
+              [
+                  263655.0,
+                  263891.1,
+                  264022.2,
+                  264058.9,
+                  264095.6,
+                  264022.2,
+                  264022.2,
+                  263936.5,
+              ]
+          y:
+              [
+                  6506601.0,
+                  6506394.0,
+                  6506124.0,
+                  6505891.0,
+                  6505585.0,
+                  6505365.0,
+                  6505145.0,
+                  6504802.0,
+              ]
+turbines: !include ../plant_energy_turbine/DTU_10MW_turbine.yaml
