@@ -1,0 +1,67 @@
+#pywake and foxes
+wind_deficit_model:
+  name: Bastankhah2014
+  wake_expansion_coefficient: # k = ka*ti + kb
+    k_a: 0.0
+    k_b: 0.04
+    free_stream_ti: false
+  ceps: 0.2
+  use_effective_ws: true
+axial_induction_model: Madsen
+deflection_model:
+  name: None
+turbulence_model:
+  name: CrespoHernandez
+superposition_model:
+  ws_superposition: Linear
+  ti_superposition: Squared
+rotor_averaging:
+  grid: grid
+  n_x_grid_points: 4
+  n_y_grid_points: 4
+  background_averaging: center
+  wake_averaging: center
+  wind_speed_exponent_for_power: 3
+  wind_speed_exponent_for_ct: 2
+blockage_model:
+  name: None
+
+#wayve
+layers_description:
+  farm_layer_height: 238.
+  number_of_fa_layers: 1
+APM_additional_terms:
+  momentum_entrainment:  # Momentum flux parametrization
+    mfp_type: "constant_flux"   # Options: None, "constant_flux". Default: None
+    apm_mfp_settings:   # Only used when mfp_type is "constant_flux"
+      a_mfp: 0.120  # Default: 0.120
+      d_mfp: 27.80  # Default: 27.80
+apm_grid:
+  Lx: 1.e6
+  Ly: 1.e6
+  dx: 500
+  L_filter: 1.e3
+wake_tool: "wayve"  # Options: "wayve", "foxes" (pywake to do). Default: "wayve"
+wm_coupling:
+  method: "PB"  # Options: VM, PB, US (see https://dx.doi.org/10.1088/1742-6596/2767/9/092079)
+
+#code_saturne
+run_type: "simulate" #"postprocess"
+#
+HPC_config:
+  run_node_number: 1
+  run_ntasks_per_node: 48
+  run_wall_time_hours: 6
+  run_partition: ""
+  #
+  mesh_node_number: 1
+  mesh_ntasks_per_node: 48
+  mesh_wall_time_hours: 1
+  mesh_partition: ""
+  #
+  wckey: ""
+
+
+mesh:
+  remesh: True
+  mesh_file_name: MESH/toy_mesh.med

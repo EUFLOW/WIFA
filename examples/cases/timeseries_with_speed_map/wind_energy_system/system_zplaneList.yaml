@@ -1,0 +1,31 @@
+name: FLOW UQ vnv study on toy problem, 4 WT Wind Farm
+site: !include ../plant_energy_site/FLOW_toy_study_energy_site.yaml
+wind_farm: !include ../plant_wind_farm/FLOW_toy_study_wind_farm.yaml
+attributes:
+  flow_model:
+    name: foxes
+  analysis: !include analysis.yaml
+
+  model_outputs_specification:
+    output_folder: "results"
+    #
+    cases_run:
+      all_occurences: False
+      subset: [0, 2, 5]
+    #
+    turbine_outputs:
+      turbine_nc_filename: 'turbine_data.nc' # dimension = states, turbine
+      output_variables: ['power', 'rotor_effective_velocity'] #'frequency'
+    #
+    flow_field:
+      report: True
+      flow_nc_filename: flow_field.nc
+      output_variables: ['wind_speed', 'wind_direction']
+      z_planes:
+        z_sampling: "plane_list"
+        z_list: [119.]
+        xy_sampling: "grid"
+        x_bounds: [-1000, 5000]
+        y_bounds: [-1000, 1000]
+        dx: 150
+        dy: 150

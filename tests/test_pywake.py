@@ -341,7 +341,37 @@ def test_heterogeneous_wind_rose_arbitrary_points():
 
     assert wifa_res == res_aep
 
+def test_het_timeseries():
+    resource_ds = xr.load_dataset('examples/cases/timeseries_with_turbine_specific_speeds/plant_energy_resource/Stochastic_atHubHeight.nc')
+    reference_point_for_speed_up_calc = resource_ds.median(dim=('x', 'y'))
+    resource_ds["Speedup"] = resource_ds['wind_speed'] / reference_point_for_speed_up_calc['wind_speed']
+    
+    resource_ds['P'] = 1
+    resource_ds = resource_ds.rename({'wind_speed': 'WS', 'wind_direction': 'WD', 'turbulence_intensity': 'TI'})
+    site = XRSite(resource_ds)
+    
+    x = [0, 1248.1, 2496.2, 3744.3]
+    y = [0, 0, 0, 0]
+    turbine = DTU10MW()
+    # site = Hornsrev1Site()
+    wfm = BastankhahGaussian(
+        site,
+        turbine,
+        k=0.04,
+        use_effective_ws=True,
+        superpositionModel=LinearSum(),
+        rotorAvgModel=RotorCenter(),
+    )
+    
+    _f = np.zeros_like(resource_ds.time)
+    
+    sim_res = wfm(x, y, time=_f, ws=_f, wd=_f)
+ 
+    wifa_res = run_pywake('examples/cases/timeseries_with_turbine_specific_speeds/wind_energy_system/system.yaml')
 
+    assert(sim_res.aep() == wifa_res)
+
+test_het_timeseries()
 # if __name__ == "__main__":
 #    test_heterogeneous_wind_rose()
 #     simple_yaml_to_pywake('../examples/cases/windio_4turbines_multipleTurbines/plant_energy_turbine/IEA_10MW_turbine.yaml')
