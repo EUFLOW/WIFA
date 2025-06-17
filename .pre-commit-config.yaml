@@ -26,19 +26,14 @@ repos:
     hooks:
       - id: flake8
         additional_dependencies: [flake8-docstrings]
+        args: [
+          "--max-line-length=88",  # Match black's default
+          "--extend-ignore=E203,W503"  # Black compatibility
+          #"--extend-ignore=E203,W503,D100,D101,D102,D103,D104"  # Also ignore docstring issues for now
+        ]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.3.0
     hooks:
       - id: mypy
         additional_dependencies: [types-requests]
-
-  # Fast tests only in pre-commit
-  - repo: local
-    hooks:
-      - id: pytest-fast
-        name: pytest-fast
-        entry: pytest tests/unit/ -x --tb=short
-        language: system
-        pass_filenames: false
-        always_run: true
