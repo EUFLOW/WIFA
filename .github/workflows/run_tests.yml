@@ -32,6 +32,13 @@ jobs:
         pip install --upgrade pip
         pip install git+https://gitlab.windenergy.dtu.dk/TOPFARM/PyWake.git@v2.6.5
         pip install -e .[test]
+        pip install pytest-cov
     - name: Test with pytest
       run: |
-        py.test --durations=0 tests/
+        pytest --durations=0 tests/ --cov=wifa --cov-report=xml tests/
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
