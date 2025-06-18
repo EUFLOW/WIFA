@@ -13,7 +13,7 @@ import yaml
 
 # from yaml.loader import SafeLoader
 from datetime import datetime, timedelta
-from windIO.utils.yml_utils import validate_yaml, Loader, load_yaml
+from windIO import validate as validate_yaml, load_yaml
 from functools import reduce
 import wifa.cs_api.cs_modules.csMeteo.nieuwstadt_stable_profiles_utils as nwstdt
 

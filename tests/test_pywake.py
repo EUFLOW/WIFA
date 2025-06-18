@@ -18,7 +18,7 @@ from py_wake.wind_turbines.power_ct_functions import (
 )
 from scipy.special import gamma
 from windIO import __path__ as wiop
-from windIO.utils.yml_utils import validate_yaml
+from windIO import validate as validate_yaml
 
 from wifa.pywake_api import run_pywake
 
@@ -58,7 +58,7 @@ def test_pywake_KUL():
     )
 
     # validate input
-    validate_yaml(yaml_input, windIO_path / Path("plant/wind_energy_system.yaml"))
+    validate_yaml(yaml_input, Path("plant/wind_energy_system"))
 
     # compute AEP (next step is to return a richer set of outputs)
     output_dir_name = "output_pywake_4wts"
@@ -97,7 +97,7 @@ def test_pywake_4wts(four_turbine_site):
     )
 
     # validate input
-    validate_yaml(yaml_input, windIO_path / Path("plant/wind_energy_system.yaml"))
+    validate_yaml(yaml_input, Path("plant/wind_energy_system"))
 
     # compute AEP (next step is to return a richer set of outputs)
     output_dir_name = "output_pywake_4wts"
@@ -147,7 +147,7 @@ def test_pywake_4wts_operating_flag():
     )
 
     # validate input
-    validate_yaml(yaml_input, windIO_path / Path("plant/wind_energy_system.yaml"))
+    validate_yaml(yaml_input, Path("plant/wind_energy_system"))
 
     # compute AEP (next step is to return a richer set of outputs)
     output_dir_name = "output_pywake_4wts"

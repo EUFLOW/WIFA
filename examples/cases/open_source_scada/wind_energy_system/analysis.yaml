@@ -26,8 +26,6 @@ rotor_averaging:
   wind_speed_exponent_for_power: 3
   wind_speed_exponent_for_ct: 2
 
-wake_tool: "foxes"
-
 # saturne
 run_type: "simulate" #"postprocess"
 #
@@ -40,7 +38,7 @@ HPC_config:
   mesh_node_number: 2
   mesh_ntasks_per_node: 48
   mesh_wall_time_hours: 1
-  run_partition: "p2"
+  #run_partition: "p2"
 
 mesh:
   remesh: True

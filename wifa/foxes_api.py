@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from windIO.utils.yml_utils import load_yaml
+from windIO import load_yaml
 
 
 def run_foxes(
