@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 import os
-from windIO.utils.yml_utils import validate_yaml, Loader, load_yaml
+from windIO import validate as validate_yaml, load_yaml
 from windIO import __path__ as wiop
 
 
@@ -13,7 +13,7 @@ def base_path():
 
 @pytest.fixture
 def schema_path():
-    return Path("plant/wind_energy_system.yaml")
+    return Path("plant/wind_energy_system")
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def validate_system_yaml(
     """Helper function to validate a system.yaml file"""
     yaml_fn = "wind_energy_system/" + system_fn
     system_yaml = base_path / case_path / yaml_fn
-    validate_yaml(system_yaml, windio_path / schema_path)
+    validate_yaml(system_yaml, schema_path)
 
 
 # Test cases
@@ -70,7 +70,7 @@ def test_windio_4turbines_basic_schema(base_path, windio_path, schema_path):
         no_field_yaml = base_path / Path(
             f"windio_4turbines/wind_energy_system/{system}"
         )
-        validate_yaml(no_field_yaml, windio_path / schema_path)
+        validate_yaml(no_field_yaml, schema_path)
 
 
 def test_windio_4turbines_abl_schema(base_path, windio_path, schema_path):
@@ -98,20 +98,43 @@ def test_windio_4turbines_profiles_stable_schema(base_path, windio_path, schema_
     base_yaml = (
         base_path / "windio_4turbines_profiles_stable/wind_energy_system/system.yaml"
     )
-    validate_yaml(base_yaml, windio_path / schema_path)
+    validate_yaml(base_yaml, schema_path)
 
     # Test grid variant
     grid_yaml = (
         base_path
         / "windio_4turbines_profiles_stable/wind_energy_system/system_grid.yaml"
     )
-    validate_yaml(grid_yaml, windio_path / schema_path)
+    validate_yaml(grid_yaml, schema_path)
+
+def test_operating_flag_timeseries(base_path, windio_path, schema_path):
+    base_yaml = (
+        base_path / "timeseries_with_operating_flag/wind_energy_system/system.yaml"
+    )
+    validate_yaml(base_yaml, schema_path)
+
+def test_simple_wind_rose(base_path, windio_path, schema_path):
+    base_yaml = (
+        base_path / "simple_wind_rose/wind_energy_system/system.yaml"
+    )
+    validate_yaml(base_yaml, schema_path)
+
+def test_hetero_wind_rose(base_path, windio_path, schema_path):
+    base_yaml = (
+        base_path / "heterogeneous_wind_rose_at_turbines/wind_energy_system/system.yaml"
+    )
+    validate_yaml(base_yaml, schema_path)
+
+    base_yaml = (
+        base_path / "heterogeneous_wind_rose_map/wind_energy_system/system.yaml"
+    )
+    validate_yaml(base_yaml, schema_path)
 
 
 if __name__ == "__main__":
     # Setup default values that would normally come from fixtures
     base_path = Path("examples/cases")
-    schema_path = Path("plant/wind_energy_system.yaml")
+    schema_path = Path("plant/wind_energy_system")
     windio_path = Path(wiop[0])
 
     print("Running all schema validation tests...")

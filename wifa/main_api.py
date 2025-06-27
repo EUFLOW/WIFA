@@ -8,7 +8,7 @@ import sys
 import argparse
 
 import windIO
-from windIO.utils.yml_utils import validate_yaml, load_yaml
+from windIO import validate as validate_yaml, load_yaml
 
 sys.path.append(windIO.__path__[0])
 
