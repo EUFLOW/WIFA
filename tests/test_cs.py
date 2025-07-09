@@ -1,7 +1,7 @@
 from wifa.cs_api.cs_modules.csLaunch.cs_run_function import run_code_saturne
-from windIO.utils.yml_utils import validate_yaml
 from pathlib import Path
 from windIO import __path__ as wiop
+from windIO import validate as validate_yaml
 import os
 
 test_path = Path(os.path.dirname(__file__))
@@ -10,9 +10,9 @@ windIO_path = Path(wiop[0])
 
 def _run_cs(wes_dir, output_dir):
     i = 1
-    for yaml_input in wes_dir.glob("system*.yaml"):
+    for yaml_input in wes_dir.glob("system*"):
         print("\nRUNNING CODE_SATURNE ON", yaml_input, "\n")
-        validate_yaml(yaml_input, windIO_path / "plant/wind_energy_system.yaml")
+        validate_yaml(yaml_input, Path("plant/wind_energy_system"))
         run_code_saturne(
             yaml_input,
             test_mode=False,

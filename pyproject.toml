@@ -43,7 +43,7 @@ requires-python = ">=3.8,<3.12"
 dependencies = [
     "py_wake>=2.6.5",
     "foxes>=1.2.4",
-    "windIO @ git+https://github.com/EUFLOW/windIO@master",
+    "windIO @ git+https://github.com/EUFlow/windIO.git@feature/euflow_merge",
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
     "numpy<2",
     "xarray>=2022.0.0,<2025"

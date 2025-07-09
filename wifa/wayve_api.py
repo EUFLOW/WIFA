@@ -1,7 +1,7 @@
 # General packages
 import numpy as np
 from scipy.interpolate import interp1d
-from windIO.utils.yml_utils import load_yaml
+from windIO import load_yaml
 import matplotlib.pyplot as plt
 import mpmath
 import warnings

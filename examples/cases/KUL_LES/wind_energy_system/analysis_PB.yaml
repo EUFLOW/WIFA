@@ -13,7 +13,6 @@ apm_grid:
   Ly: 30.e3
   dx: 500
   L_filter: 1.e3
-wake_tool: "wayve"  # Options: "wayve", "foxes" (pywake to do). Default: "wayve"
 wm_coupling:
   method: "PB"  # Options: VM, PB, US (see https://dx.doi.org/10.1088/1742-6596/2767/9/092079)
 
@@ -57,7 +56,6 @@ HPC_config:
   mesh_node_number: 2
   mesh_ntasks_per_node: 48
   mesh_wall_time_hours: 1
-  run_partition: ""
   #
   wckey: ""
 
