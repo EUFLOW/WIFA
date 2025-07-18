@@ -31,22 +31,20 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Development Status :: 3 - Alpha",
 ]
-requires-python = ">=3.8,<3.12"
+requires-python = ">=3.10,<3.12"
 dependencies = [
     "py_wake>=2.6.5",
-    "foxes>=1.2.4",
-    "windIO @ git+https://github.com/EUFLOW/windIO@master",
-    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
+    "foxes @ git+https://github.com/FraunhoferIWES/foxes.git@eu_flow",
+    "windIO @ git+https://github.com/EUFlow/windIO.git@feature/euflow_merge",
     "numpy<2",
-    "xarray>=2022.0.0,<2025"
+    "xarray>=2022.0.0,<2025",
+    "mpmath",
 ]
 
 [project.optional-dependencies]

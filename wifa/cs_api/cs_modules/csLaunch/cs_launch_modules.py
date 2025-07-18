@@ -13,7 +13,7 @@ import yaml
 
 # from yaml.loader import SafeLoader
 from datetime import datetime, timedelta
-from windIO.utils.yml_utils import validate_yaml, Loader, load_yaml
+from windIO import validate as validate_yaml, load_yaml
 from functools import reduce
 import wifa.cs_api.cs_modules.csMeteo.nieuwstadt_stable_profiles_utils as nwstdt
 
@@ -1207,21 +1207,21 @@ class CS_study:
 
             # TODO: check if we should replace by input from the flow_api in case of binned
             self.inflow.run_times = np.arange(ntimes)  # default
-            if "cases_run" in get_child_keys(
+            if "run_configuration" in get_child_keys(
                 self.wind_system_data, branch="attributes.model_outputs_specification"
             ):
                 if "all_occurences" in get_child_keys(
                     self.wind_system_data,
-                    branch="attributes.model_outputs_specification.cases_run",
+                    branch="attributes.model_outputs_specification.run_configuration.times_run",
                 ):
                     all_occurences = get_value(
                         self.wind_system_data,
-                        "attributes.model_outputs_specification.cases_run.all_occurences",
+                        "attributes.model_outputs_specification.run_configuration.times_run.all_occurences",
                     )
                     if not (all_occurences):
                         self.inflow.run_times = get_value(
                             self.wind_system_data,
-                            "attributes.model_outputs_specification.cases_run.subset",
+                            "attributes.model_outputs_specification.run_configuration.times_run.subset",
                         )
                         self.inflow.times = self.inflow.times[self.inflow.run_times]
                         if not all(

@@ -9,8 +9,7 @@ import yaml
 import argparse
 from scipy.interpolate import interp1d
 from scipy.special import gamma
-from windIO.utils import plant_schemas_path
-from windIO.utils.yml_utils import load_yaml, validate_yaml, dict_to_netcdf
+from windIO import load_yaml, validate as validate_yaml, dict_to_netcdf
 from pathlib import Path
 
 
@@ -154,8 +153,8 @@ def run_pywake(yamlFile, output_dir="output"):
     
     # allow yamlFile to be an already parsed input dict
     if not isinstance(yamlFile, dict):
-        validate_yaml(yamlFile, plant_schemas_path + "wind_energy_system.yaml")
-        system_dat = load_yaml(yamlFile)
+        validate_yaml(yamlFile, "plant/wind_energy_system")
+        system_dat = load_yaml(Path(yamlFile))
     else:
         system_dat = yamlFile
 
@@ -253,8 +252,8 @@ def run_pywake(yamlFile, output_dir="output"):
     resource_dat = system_dat["site"]["energy_resource"]
     WFXLB = np.min(system_dat["site"]["boundaries"]["polygons"][0]["x"])
     WFXUB = np.max(system_dat["site"]["boundaries"]["polygons"][0]["x"])
-    WFYLB = np.min(system_dat["site"]["boundaries"]["polygons"][1]["y"])
-    WFYUB = np.max(system_dat["site"]["boundaries"]["polygons"][1]["y"])
+    WFYLB = np.min(system_dat["site"]["boundaries"]["polygons"][0]["y"])
+    WFYUB = np.max(system_dat["site"]["boundaries"]["polygons"][0]["y"])
     checkk = "flow_field" in system_dat["attributes"]["model_outputs_specification"]
     if checkk:
         checkk = "z_planes" in system_dat["attributes"]["model_outputs_specification"]["flow_field"]
@@ -319,10 +318,12 @@ def run_pywake(yamlFile, output_dir="output"):
         wind_resource_timeseries = resource_dat["wind_resource"]["time"]
         times = wind_resource_timeseries
         cases_idx = np.ones(len(times)).astype(bool)
-        if 'model_outputs_specification' in system_dat["attributes"]:
-            if 'cases_run' in system_dat["attributes"]['model_outputs_specification']:
-                if not bool(system_dat["attributes"]['model_outputs_specification']['cases_run']['all_occurences']):
-                    cases_idx = system_dat["attributes"]['model_outputs_specification']['cases_run']['subset']
+        if 'model_outputs_specification' in system_dat["attributes"] and 'run_configuration' in system_dat["attributes"]['model_outputs_specification']:
+            run_config = system_dat["attributes"]['model_outputs_specification']['run_configuration']
+            if 'times_run' in run_config and not run_config['times_run'].get('all_occurences', True):
+                if 'subset' in run_config['times_run']:
+                    cases_idx = run_config['times_run']['subset']
+
 
         if "height" in resource_dat["wind_resource"].keys():
             heights = resource_dat["wind_resource"]["height"]

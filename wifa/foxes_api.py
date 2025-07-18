@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from windIO.utils.yml_utils import load_yaml
+from windIO import load_yaml
 
 
 def run_foxes(
@@ -60,8 +60,9 @@ def run_foxes(
         wio = input_yaml
         idir = input_dir
     else:
+        input_yaml = Path(input_yaml)
         wio = load_yaml(input_yaml)
-        idir = Path(input_yaml).parent
+        idir = input_yaml.parent
 
     idict, algo, odir = read_windio(wio, verbosity=verbosity)
 

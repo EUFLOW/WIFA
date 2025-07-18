@@ -1,7 +1,7 @@
 from wifa.foxes_api import run_foxes
-from windIO.utils.yml_utils import validate_yaml
 from pathlib import Path
 from windIO import __path__ as wiop
+from windIO import validate as validate_yaml
 from foxes import Engine, reset_engine
 import os
 
@@ -24,7 +24,7 @@ def _run_foxes(wes_dir):
     for yaml_input in wes_dir.glob("system*.yaml"):
         if "_noXYgrid" not in str(yaml_input):
             print("\nRUNNING FOXES ON", yaml_input, "\n")
-            validate_yaml(yaml_input, windIO_path / "plant/wind_energy_system.yaml")
+            validate_yaml(yaml_input, Path("plant/wind_energy_system"))
             output_dir_name = Path("output_test_foxes")
             output_dir_name.mkdir(parents=True, exist_ok=True)
             try:
