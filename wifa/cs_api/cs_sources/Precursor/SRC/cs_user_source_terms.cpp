@@ -73,7 +73,7 @@ cs_user_source_terms(cs_domain_t  *domain,
                      cs_real_t    *st_imp)
 {
   const cs_mesh_t *m = domain->mesh;
-  const cs_mesh_quantities_t *mq = cs_glob_mesh_quantities;
+  cs_mesh_quantities_t *mq = cs_glob_mesh_quantities;
   const cs_lnum_t n_cells = m->n_cells;
   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
 
@@ -85,7 +85,7 @@ cs_user_source_terms(cs_domain_t  *domain,
 
   const cs_real_t *cpro_rom = CS_F_(rho)->val;
 
-  const cs_real_3_t *vel = CS_F_(vel)->val;
+  const cs_real_3_t *vel = (const cs_real_3_t *)CS_F_(vel)->val;
 
   const cs_field_t *fld = cs_field_by_id(f_id);
 
@@ -101,6 +101,7 @@ cs_user_source_terms(cs_domain_t  *domain,
   const cs_real_t tstar = cs_notebook_parameter_value_by_name("tstar");
 
   cs_time_step_t *ts = cs_get_glob_time_step();
+  const cs_real_t  cs_energy_solver=cs_notebook_parameter_value_by_name("energy");
 
   /* For velocity
    * ============ */
@@ -124,8 +125,8 @@ cs_user_source_terms(cs_domain_t  *domain,
     cs_real_t fcorio;
     fcorio = 2.0*7.292115e-5*sin(lat*dpi/180.0);
 
-    if ((ts->nt_cur) > 20000 && (ts->nt_cur)%500==0){
-	  cs_real_t uzrefn = u_ref;
+    if ((ts->nt_cur) > 20000 && (ts->nt_cur)%1000==0 && cs_energy_solver==0){
+      cs_real_t uzrefn = u_ref;
       cs_real_t uzref, vzref;
       cs_lnum_t closest_id;
       int closest_id_rank;
@@ -148,7 +149,9 @@ cs_user_source_terms(cs_domain_t  *domain,
           cs_glob_atmo_option->meteo_uref += CS_MAX(CS_MIN(u_ref-uzrefn, 0.01), -0.01);
       }
       else{
-        ts->nt_max = ts->nt_cur + 490;
+        ts->nt_max = ts->nt_cur + 7000;
+        //modification du param notebook pour passer a energy=1
+        cs_notebook_parameter_set_value("energy", 1);
       }
       bft_printf("uzrefn = %.2f ; uref = %.2f\n ",uzrefn, cs_glob_atmo_option->meteo_uref);
     }
@@ -191,9 +194,7 @@ cs_user_source_terms(cs_domain_t  *domain,
   if (fld == CS_F_(t)) {
 	if (cs_glob_atmo_option->meteo_dlmo>0)
 	{
-      const cs_real_t  cp0 = cs_glob_fluid_properties->cp0;
       for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-        const cs_real_t rhom = CS_F_(rho)->val[c_id];
         cs_real_t z = cell_cen[c_id][2];
         cs_real_t sterm = cp0*cpro_rom[c_id]*ustar*tstar*2.0/zi*pow(1-z/zi, 2.0-1);
         if (z < zi) {
@@ -206,23 +207,18 @@ cs_user_source_terms(cs_domain_t  *domain,
   /* Dyunkerke model */
   if (f_id == CS_F_(eps)->id &&
       cs_notebook_parameter_value_by_name("Dyunkerke") > 0) {
-    const cs_mesh_t *m = domain->mesh;
-    cs_mesh_quantities_t *mq = domain->mesh_quantities;
-    cs_real_t *cell_f_vol = mq->cell_f_vol;
     const cs_lnum_t n_b_faces = m->n_b_faces;
     const cs_lnum_t n_i_faces = m->n_i_faces;
-    const cs_lnum_t *b_face_cells = m->b_face_cells;
-    const cs_real_t *distb = mq->b_dist;
     cs_real_t *cromo = CS_F_(rho)->val;
     cs_real_t *cpro_pcvto = CS_F_(mu_t)->val;
     cs_real_t sigmak=1.0;
     const cs_equation_param_t *eqp_k
       = cs_field_get_equation_param_const(CS_F_(k));
     cs_real_t hint;
-    cs_real_t *coefap = NULL, *coefbp = NULL, *cofafp = NULL, *cofbfp = NULL;
-    cs_real_t *vol_divmugradk = NULL;
+    const cs_field_bc_coeffs_t *bc_coeffs;
+    cs_real_t *vol_divmugradk = nullptr;
     BFT_MALLOC(vol_divmugradk, n_cells_ext, cs_real_t);
-    cs_real_t *w3 = NULL;
+    cs_real_t *w3 = nullptr;
     BFT_MALLOC(w3, n_cells_ext, cs_real_t);
     cs_real_t *viscf, *viscb;
     BFT_MALLOC(viscf, n_i_faces, cs_real_t);
@@ -238,31 +234,25 @@ cs_user_source_terms(cs_domain_t  *domain,
                       viscf,
                       viscb);
 
-    coefap = CS_F_(k)->bc_coeffs->a;
-    coefbp = CS_F_(k)->bc_coeffs->b;
-    cofafp = CS_F_(k)->bc_coeffs->af;
-    cofbfp = CS_F_(k)->bc_coeffs->bf;
+    bc_coeffs = CS_F_(k)->bc_coeffs;
 
     /* Compute - div(mu_T/sigmak grad (k)) time the volume of the cell */
     cs_diffusion_potential(CS_F_(k)->id,
                            m,
                            mq,
-                           1,     /* init */
-                           0,     /* inc */
+                           1, /* init */
+                           0, /* inc */
                            eqp_k->imrgra,
                            eqp_k->nswrgr,
                            eqp_k->imligr,
-                           0,     /* iphydp */
+                           0, /* iphydp */
                            eqp_k->iwgrec,
                            eqp_k->verbosity,
                            eqp_k->epsrgr,
                            eqp_k->climgr,
-                           NULL,
+                           nullptr,
                            CS_F_(k)->val_pre,
-                           coefap,
-                           coefbp,
-                           cofafp,
-                           cofbfp,
+                           bc_coeffs,
                            viscf,
                            viscb,
                            w3,
@@ -273,8 +263,8 @@ cs_user_source_terms(cs_domain_t  *domain,
     for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id ++) {
       /* Already contains cell volume */
       st_exp[cell_id] = CS_F_(eps)->val_pre[cell_id] / CS_F_(k)->val_pre[cell_id] * cs_turb_ce1 * cromo[cell_id] * fmax( 0., -vol_divmugradk[cell_id] ) ;
-      if (f_eps_transport != NULL) {
-        f_eps_transport->val[cell_id] = st_exp[cell_id]/cell_f_vol[cell_id]/cromo[cell_id];
+      if (f_eps_transport != nullptr) {
+        f_eps_transport->val[cell_id] = st_exp[cell_id]/cell_vol[cell_id]/cromo[cell_id];
       }
     }
 
