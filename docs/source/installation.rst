@@ -65,3 +65,12 @@ Pywake
 
 WAYVE
 ~~~~~~~~~~~~~~~~~~~~~~~
+
+WAYVE can be downloaded and installed from `gitlab <https://gitlab.kuleuven.be/TFSO-software/wayve>`_:
+
+.. code-block:: console
+
+  git clone git@gitlab.kuleuven.be:TFSO-software/wayve.git
+  cd wayve
+  pip install .
+  
