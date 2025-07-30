@@ -134,3 +134,18 @@ def extract_saturne_triangulation(slicexy, normal):
     triangulation = tri.Triangulation(x1, y1, triang)
 
     return x1, y1, triang, triangulation
+
+def get_cell_centers(data):
+    """
+    Get the coordinates of the cell centers
+    """
+    cell_centers = vtk.vtkCellCenters()
+    cell_centers.SetInputData(data)
+    cell_centers.Update()
+    centers = cell_centers.GetOutput()
+    points = centers.GetPoints()
+
+    return points
+
+
+

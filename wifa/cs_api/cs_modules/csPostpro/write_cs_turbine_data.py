@@ -50,6 +50,29 @@ powercp_file = rootgrp.createVariable(
     ),
 )
 
+thrust_file = rootgrp.createVariable(
+    "thrust",
+    "f8",
+    (
+        "turbine",
+        "time",
+    ),
+)
+
+turbines_file = rootgrp.createVariable(
+    "turbine",
+    "f8",
+    ("turbine",
+    ),
+)
+time_file = rootgrp.createVariable(
+    "time",
+    "f8",
+    ( "time",
+    ),
+)
+turbines_file[:]=np.arange(turbine_number)
+time_file[:]=cases
 for j, casei in enumerate(cases):
     print(str(j) + "/" + str(len(cases)), end="\r")
     # TODO: string formatting for id "%05d"
@@ -89,7 +112,7 @@ for j, casei in enumerate(cases):
         total_power.append(float(first_line.split(" ")[-1]))
         second_line = file.readlines()[0]
         var_name = second_line.replace(" ", "").replace("\n", "").split(",")
-    power_file_table = np.genfromtxt(power_file, delimiter=",", skip_header=2)
+    power_file_table = np.atleast_2d(np.genfromtxt(power_file, delimiter=",", skip_header=2))
     x_coords.append(
         power_file_table[:, var_name.index("xhub")]
         - np.mean(power_file_table[:, var_name.index("xhub")])
@@ -114,5 +137,5 @@ for j, casei in enumerate(cases):
     u_file[:, j] = u[0]
     dir_file[:, j] = dir_table[0]
     powercp_file[:, j] = power_table_cpstar[0]
-
+    thrust_file[:, j] = thrust[0]
 rootgrp.close()

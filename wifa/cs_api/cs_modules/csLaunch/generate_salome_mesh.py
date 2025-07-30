@@ -43,9 +43,7 @@ args = parser.parse_args()
 #######################
 # lu dans des fichiers
 #######################
-xy_turbines = np.genfromtxt("Farm/DATA/turbines_info.csv", delimiter=",").transpose()[
-    :2, :
-]
+xy_turbines = np.atleast_2d(np.genfromtxt('Farm/DATA/turbines_info.csv',delimiter=',')).transpose()[:2,:]
 nombre_turbines = xy_turbines.shape[1]
 
 # dimensions en x et y du domaine
@@ -54,9 +52,9 @@ Ly = args.domain_size
 
 # caractéristiques turbines:
 # hauteur moyeu
-hub_heights_array = np.genfromtxt("Farm/DATA/turbines_info.csv", delimiter=",")[:, 2]
+hub_heights_array =  np.atleast_2d(np.genfromtxt("Farm/DATA/turbines_info.csv", delimiter=","))[:, 2]
 # diametre du rotor
-diameters_array = np.genfromtxt("Farm/DATA/turbines_info.csv", delimiter=",")[:, 3]
+diameters_array =  np.atleast_2d(np.genfromtxt("Farm/DATA/turbines_info.csv", delimiter=","))[:, 3]
 
 # hm = np.max(hub_heights_array) #not used anymore, replaced by:
 # Domain height
@@ -81,6 +79,8 @@ tc = args.domain_size / 150.0
 
 # taille min
 tm = args.disk_mesh_size
+print("domain_size", args.domain_size)
+print("diskmeshsize", tm)
 traff2 = 1.8 * tm
 traff3 = 2.5 * tm
 traff4 = 3.5 * tm
