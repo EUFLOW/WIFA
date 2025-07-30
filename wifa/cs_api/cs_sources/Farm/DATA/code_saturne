@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Ensure the correct command is found:
-export PATH="/software/rd/saturne/code_saturne/7.0/arch/cronos_ompi/bin":$PATH
+export PATH="/software/rd/saturne/code_saturne/9.0/arch/cronos_impi/bin":$PATH
 
 # Insert default command
 cs_cmd=""

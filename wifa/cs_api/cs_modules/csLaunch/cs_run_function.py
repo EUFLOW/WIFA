@@ -103,7 +103,7 @@ def run_cs_windfarm_study(windfarm_study, test_mode=False, postprocess_only=Fals
         "zref": windfarm_study.farm.hub_heights[0],  # TODO : for multiple turbines
         "ureff": 10.0,
         #
-        "t0": 293.15,
+        "t0": windfarm_study.inflow.T0,
         "Lmoinv": 0.0,
         #
         "lat": 55,  # latitude for coriolis
@@ -166,7 +166,7 @@ def run_cs_windfarm_study(windfarm_study, test_mode=False, postprocess_only=Fals
                     windfarm_study.inflow.wind_velocity[j], 2
                 )
                 prec_notebook_parameters["t0"] = (
-                    293.15  # 20 deg Celcius, arbitrary #TODO: user choice?
+                    windfarm_study.inflow.T0  # 20 deg Celcius, arbitrary #TODO: user choice?
                 )
                 farm_notebook_parameters["teta"] = np.round(
                     windfarm_study.inflow.wind_dir[j], 2
@@ -186,7 +186,7 @@ def run_cs_windfarm_study(windfarm_study, test_mode=False, postprocess_only=Fals
                     #
                     if np.abs(windfarm_study.inflow.LMO_values[j]) > 1000:
                         windfarm_study.inflow.pottemp[:, j] = (
-                            windfarm_study.generate_temp_CNBL(j)
+                            windfarm_study.generate_temp_CNBL(j, windfarm_study.inflow.T0)
                         )
                         windfarm_study.inflow.u[:, j] = (
                             np.ones(len(windfarm_study.inflow.heights))
@@ -213,7 +213,7 @@ def run_cs_windfarm_study(windfarm_study, test_mode=False, postprocess_only=Fals
                         prec_notebook_parameters["zi"] = 0
                     elif windfarm_study.inflow.LMO_values[j] > 0:
                         pottemp, u, v, tke, epsilon, ustar, tstar, zi = (
-                            windfarm_study.generate_prof_stable(j)
+                            windfarm_study.generate_prof_stable(j, windfarm_study.inflow.T0)
                         )
                         windfarm_study.inflow.pottemp[:, j] = pottemp
                         windfarm_study.inflow.u[:, j] = u

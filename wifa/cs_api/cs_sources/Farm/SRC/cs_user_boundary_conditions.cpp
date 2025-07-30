@@ -7,7 +7,7 @@
 /*
   This file is part of code_saturne, a general-purpose CFD tool.
 
-  Copyright (C) 1998-2023 EDF S.A.
+  Copyright (C) 1998-2025 EDF S.A.
 
   This program is free software; you can redistribute it and/or modify it under
   the terms of the GNU General Public License as published by the Free Software
@@ -35,7 +35,6 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 /*----------------------------------------------------------------------------
@@ -43,8 +42,6 @@
  *----------------------------------------------------------------------------*/
 
 #include "cs_headers.h"
-#include "gdal.h"
-#include "cpl_conv.h"
 
 /*----------------------------------------------------------------------------*/
 
@@ -80,12 +77,12 @@ BEGIN_C_DECLS
  *   f->bc_coeffs->rcodcl3[face_id]
  *
  * For vector or tensor fields, these arrays are not interleaved,
- * so for a given face "face_id" and field component "comp_id", acess
+ * so for a given face "face_id" and field component "comp_id", access
  * is as follows (where n_b_faces is domain->mesh->n_b_faces):
  *
- *   f->bc_coeffs->rcodcl1[n_b_faces*comp_id + face_id]
- *   f->bc_coeffs->rcodcl2[n_b_faces*comp_id + face_id]
- *   f->bc_coeffs->rcodcl3[n_b_faces*comp_id + face_id]
+ *   f->bc_coeffs->rcodcl1[n_b_faces*comp_id + face_id]\n
+ *   f->bc_coeffs->rcodcl2[n_b_faces*comp_id + face_id]\n
+ *   f->bc_coeffs->rcodcl3[n_b_faces*comp_id + face_id]\n\n
  *
  * Only the icodcl code values from the first component are used in the case
  * of vector or tensor fields, so the icodcl values can be defined as for
@@ -97,33 +94,23 @@ void
 cs_user_boundary_conditions(cs_domain_t  *domain,
                             int           bc_type[])
 {
+  CS_UNUSED(domain);
   CS_UNUSED(bc_type);
-
-  cs_real_t pref = cs_glob_atmo_constants->ps;
-  cs_real_t rair = cs_glob_fluid_properties->r_pg_cnst;
-  cs_real_t cp0 = cs_glob_fluid_properties->cp0;
-  cs_real_t rscp = rair/cp0;
-  cs_real_t psea = cs_glob_atmo_option->meteo_psea;
-  cs_real_t theta0 = cs_glob_atmo_option->meteo_t0 * pow(pref/psea, -rscp);
-  cs_real_t dlmo = cs_glob_atmo_option->meteo_dlmo;
 
   cs_field_t *f_roughness = cs_field_by_name("boundary_roughness");
   cs_field_t *f_thermal_roughness = cs_field_by_name("boundary_thermal_roughness");
 
-  cs_lnum_t face_id=0;
-  int var_id = cs_field_get_key_int(CS_F_(t), cs_field_key_id("variable_id")) - 1;
+  cs_real_t dlmo = cs_glob_atmo_option->meteo_dlmo;
+  const cs_zone_t *z = cs_boundary_zone_by_name("Sol");
 
-  cs_zone_t *z = cs_boundary_zone_by_name("ground");
-
-  for (cs_lnum_t face_count=0; face_count < z->n_elts; face_count ++) {
-    face_id=z->elt_ids[face_count];
-    f_roughness->val[face_id]=cs_glob_atmo_option->meteo_z0;
+  for (cs_lnum_t face_count = 0; face_count < z->n_elts; face_count++) {
+    const cs_lnum_t face_id = z->elt_ids[face_count];
+    f_roughness->val[face_id] = cs_glob_atmo_option->meteo_z0;
     /* /\* How to treat thermal rugosity is still uncertain *\/ */
-    f_thermal_roughness->val[face_id]=cs_glob_atmo_option->meteo_z0;
-    if (dlmo>0)
-    {
-        CS_F_(t)->bc_coeffs->icodcl[face_id] = 6;
-        CS_F_(t)->bc_coeffs->rcodcl1[face_id] = cs_glob_atmo_option->meteo_t0;
+    f_thermal_roughness->val[face_id] = cs_glob_atmo_option->meteo_z0;
+    if (dlmo > 0) {
+      CS_F_(t)->bc_coeffs->icodcl[face_id] = 6;
+      CS_F_(t)->bc_coeffs->rcodcl1[face_id] = cs_glob_atmo_option->meteo_t0;
     }
   }
 

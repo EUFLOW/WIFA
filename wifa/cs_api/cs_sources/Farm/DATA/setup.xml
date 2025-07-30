@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><Code_Saturne_GUI case="v8.0" solver_version="6.0;7.0;8.0" study="generic_cs_cases" version="2.0">
+<?xml version="1.0" encoding="utf-8"?><Code_Saturne_GUI case="Farm" solver_version="6.0;7.0;8.0;9.0" study="cs_sources" version="2.0">
   <additional_scalars>
     <users>
       <property dimension="3" label="source_term" name="source_term" support="cells" type="user">
@@ -7,7 +7,7 @@
       <property dimension="1" label="source_term_coeff" name="source_term_coeff" support="cells" type="user"/>
       <property dimension="1" label="nudamp_top" name="nudamp_top" support="cells" type="user"/>
       <property dimension="1" label="nudamp_bound" name="nudamp_bound" support="cells" type="user"/>
-      <property name="WF_source_term" type="user" label="WF_source_term" support="cells" dimension="3"/>
+      <property dimension="3" label="WF_source_term" name="WF_source_term" support="cells" type="user"/>
     </users>
   </additional_scalars>
   <analysis_control>
@@ -216,12 +216,8 @@
     <extrusion/>
     <faces_cutting status="off"/>
     <joining/>
-    <mesh_cartesian>
-      <x_direction law="constant" max="1.0" min="0.0" ncells="1" prog="1.0"/>
-      <y_direction law="constant" max="1.0" min="0.0" ncells="1" prog="1.0"/>
-      <z_direction law="constant" max="1.0" min="0.0" ncells="1" prog="1.0"/>
-    </mesh_cartesian>
     <mesh_smoothing status="off"/>
+    <meshes_list/>
     <periodicity/>
     <thin_walls/>
     <volumic_conditions>
@@ -263,8 +259,7 @@
       <soot_model model="off"/>
       <thermodynamical_pressure status="off"/>
     </gas_combustion>
-    <groundwater_model model="off"/>
-    <hgn_model model="off"/>
+    <immersed_boundaries/>
     <internal_coupling>
       <coupled_scalars/>
       <solid_zones/>
@@ -274,7 +269,6 @@
       <emissivity>1.0</emissivity>
       <status>off</status>
     </interparticles_radiative_transfer>
-    <joule_effect model="off"/>
     <porosities/>
     <radiative_transfer model="off">
       <absorption_coefficient type="constant">0</absorption_coefficient>
@@ -283,7 +277,6 @@
     <reference_values>
       <length/>
     </reference_values>
-    <solid_fuels model="off"/>
     <source_terms/>
     <thermal_scalar model="potential_temperature">
       <property label="Dimensionless Thermal flux" name="boundary_layer_nusselt" support="boundary">

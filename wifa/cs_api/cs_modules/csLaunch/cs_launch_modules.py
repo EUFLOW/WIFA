@@ -18,7 +18,7 @@ from functools import reduce
 import wifa.cs_api.cs_modules.csMeteo.nieuwstadt_stable_profiles_utils as nwstdt
 
 
-def theta2temp(theta, z_or_dz, P0, Pref=1000.0, g=9.81, Rair=287.0, Cp=1005.0):
+def theta2temp(theta, z_or_dz, P0, Pref=1000.0, g=9.81, Rair=287.0, Cp=1017.24):
     """
     computes the thermodynamic temp(K) as function of the potential temp in a
     hydrostatic atmosphere
@@ -51,7 +51,7 @@ def theta2temp(theta, z_or_dz, P0, Pref=1000.0, g=9.81, Rair=287.0, Cp=1005.0):
     return T
 
 
-def temp2theta(temp, z_or_dz, P0, Pref=1000.0, g=9.81, Rair=287.0, Cp=1005.0):
+def temp2theta(temp, z_or_dz, P0, Pref=1000.0, g=9.81, Rair=287.0, Cp=1017.24):
     """
     computes the potential temperature as function of the thermodynamical
     temperature in a hydrostatic atmosphere
@@ -197,6 +197,7 @@ class CS_inflow:
         self.dtheta_values = []
         self.dH_values = []
         self.ugeo_values = []
+        self.T0 = 293.15 # Default bottom temperature
 
         # Needed for stable profiles
         self.ustar = None
@@ -276,11 +277,11 @@ class CS_study:
         self.run_node_number = None
         self.run_ntasks_per_node = None
         self.run_wall_time_hours = 10.0
-        self.prec_wall_time_hours = 10.0
+        self.prec_wall_time_hours = 1
         self.run_partition = None
         self.mesh_node_number = None
         self.mesh_ntasks_per_node = None
-        self.mesh_wall_time_hours = 10.0
+        self.mesh_wall_time_hours = 1
         self.mesh_partition = None
         self.wckey = None
 
@@ -1139,7 +1140,9 @@ class CS_study:
         self.farm.cp_curves = []
         self.power_curves = []
         #
+        j = -1
         for WT_name in turbine_type_names:
+            j += 1
             if "turbines" in farm_layout_data:
                 performance_info_list = turbines_data["performance"]
             else:
@@ -1161,23 +1164,22 @@ class CS_study:
                     )
                 )
                 self.power_curves.append(power_curve)
-                #
+                
+                # create cp_curve
                 standard_rho = 1.225
-                for j in range(len(self.power_curves)):
-                    cp_curve = np.zeros((len(self.power_curves[j]), 2))
-                    cp_curve[:, 0] = self.power_curves[j][:, 0]  # U0
-                    for i in range(cp_curve.shape[0]):
-                        if cp_curve[i, 0] == 0:
-                            cp_curve[i, 1] = 0
-                        else:
-                            cp_curve[i, 1] = (self.power_curves[j][i, 1]) / (
-                                0.5
-                                * standard_rho
-                                * (np.pi * ((self.farm.rotor_diameters[j] / 2.0) ** 2))
-                                * (cp_curve[i, 0] ** 3)
-                            )  # cp
-
-                    self.farm.cp_curves.append(cp_curve)
+                cp_curve = np.zeros((len(self.power_curves[j]), 2))
+                cp_curve[:, 0] = self.power_curves[j][:, 0]  # U0
+                for i in range(cp_curve.shape[0]):
+                    if cp_curve[i, 0] == 0:
+                        cp_curve[i, 1] = 0
+                    else:
+                        cp_curve[i, 1] = (self.power_curves[j][i, 1]) / (
+                            0.5
+                            * standard_rho
+                            * (np.pi * ((self.farm.rotor_diameters[j] / 2.0) ** 2))
+                            * (cp_curve[i, 0] ** 3)
+                        )  # cp
+                self.farm.cp_curves.append(cp_curve)
 
             #
             # TODO: verify if clipping to max ct=1. is okay
@@ -1505,9 +1507,6 @@ class CS_study:
                 "attributes.model_outputs_specification.flow_field.z_planes.xy_sampling",
             )
             if self.output.xy_sampling_type == "grid":
-                print(
-                    "WARNING : code_saturne does not support grid interpolation. Flow field will be stored on original grid"
-                )
                 self.output.x_bounds = get_value(
                     self.wind_system_data,
                     "attributes.model_outputs_specification.flow_field.z_planes.x_bounds",
@@ -1840,7 +1839,7 @@ class CS_study:
 
         return wind_origin
 
-    def generate_temp_CNBL(self, time_iter):
+    def generate_temp_CNBL(self, time_iter, T0):
         ksi = 1.5
         c = 1.0 / (2 * ksi)
         l = self.inflow.ABL_heights[time_iter] + self.inflow.dH_values[time_iter] / 2
@@ -1853,7 +1852,7 @@ class CS_study:
             g[i] = (np.abs(eta[i]) + eta[i]) / 2.0
         b = self.inflow.lapse_rates[time_iter] * self.inflow.dH_values[time_iter] / 3
         a = self.inflow.dtheta_values[time_iter] + b
-        th = 293.15 + a * f + b * g
+        th = T0 + a * f + b * g
 
         return th
 
@@ -1894,8 +1893,7 @@ class CS_study:
             th = a * f(eta) + b * g(eta)
             return th + th_zi - th_offset
 
-    def generate_prof_stable(self, time_iter):
-        T0 = 293.15  # Bottom atmospheric temperature (K)
+    def generate_prof_stable(self, time_iter, T0):
         g = 9.81  # Acceleration of gravity
 
         # velocity profile parameters

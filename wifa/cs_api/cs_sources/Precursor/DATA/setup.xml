@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><Code_Saturne_GUI case="Precursor" solver_version="8.0;8.1;8.0" study="cs_api_timeseries_validation" version="2.0">
+<?xml version="1.0" encoding="utf-8"?><Code_Saturne_GUI case="Precursor" solver_version="8.0;8.1;9.0" study="cs_sources" version="2.0">
   <additional_scalars>
     <users/>
   </additional_scalars>
@@ -163,6 +163,7 @@ z = zz1*s + zz0*(1.-s);</formula>
       <var description="Temperature scale (needed for stable)" editable="No" id="8" name="tstar" oturns="No" value="0.033"/>
       <var description="Boundary layer height (needed for stable)" editable="No" id="9" name="zi" oturns="No" value="201.0"/>
       <var description="Precursor Max number of timesteps" editable="No" id="10" name="precntmax" oturns="No" value="1000000"/>
+      <var description="Activate enrgy : 1 otherwise 0" editable="Yes" id="11" name="energy" oturns="No" value="0.0"/>
     </notebook>
     <omega>
       <omega_x>0</omega_x>
@@ -175,12 +176,6 @@ z = zz1*s + zz0*(1.-s);</formula>
     <extrusion/>
     <faces_cutting status="off"/>
     <joining/>
-    <mesh_cartesian>
-      <x_direction law="constant" max="10.0" min="-10.0" ncells="1" prog="1.0"/>
-      <y_direction law="constant" max="10.0" min="-10.0" ncells="1" prog="1.0"/>
-      <z_direction law="geometric" max="26000" min="0.0" ncells="1000" prog="1.0027"/>
-    </mesh_cartesian>
-    <mesh_origin choice="mesh_import"/>
     <mesh_smoothing status="off"/>
     <meshes_list>
       <mesh name="Precursor_mesh_50m.med"/>
@@ -252,8 +247,7 @@ z = zz1*s + zz0*(1.-s);</formula>
       <soot_model model="off"/>
       <thermodynamical_pressure status="off"/>
     </gas_combustion>
-    <groundwater_model model="off"/>
-    <hgn_model model="off"/>
+    <immersed_boundaries/>
     <internal_coupling>
       <coupled_scalars/>
       <solid_zones/>
@@ -263,7 +257,6 @@ z = zz1*s + zz0*(1.-s);</formula>
       <emissivity>1.0</emissivity>
       <status>off</status>
     </interparticles_radiative_transfer>
-    <joule_effect model="off"/>
     <porosities/>
     <radiative_transfer model="off">
       <absorption_coefficient type="constant">0</absorption_coefficient>
@@ -272,7 +265,6 @@ z = zz1*s + zz0*(1.-s);</formula>
     <reference_values>
       <length/>
     </reference_values>
-    <solid_fuels model="off"/>
     <source_terms/>
     <thermal_scalar model="potential_temperature">
       <property label="Dimensionless Thermal flux" name="boundary_layer_nusselt" support="boundary">
