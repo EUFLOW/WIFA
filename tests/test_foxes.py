@@ -34,21 +34,17 @@ def _run_foxes(wes_dir):
                 engine = None
                 raise e
 
-
 def test_foxes_KUL():
     wes_dir = test_path / "../examples/cases/KUL_LES/wind_energy_system/"
     _run_foxes(wes_dir)
-
 
 def test_foxes_4wts():
     wes_dir = test_path / "../examples/cases/windio_4turbines/wind_energy_system/"
     _run_foxes(wes_dir)
 
-
 def test_foxes_abl():
     wes_dir = test_path / "../examples/cases/windio_4turbines_ABL/wind_energy_system/"
     _run_foxes(wes_dir)
-
 
 def test_foxes_abl_stable():
     wes_dir = (
@@ -78,6 +74,12 @@ def test_foxes_heterogeneous_wind_rose_map():
 def test_foxes_simple_wind_rose():
     wes_dir = (
         test_path / "../examples/cases/simple_wind_rose/wind_energy_system/"
+    )
+    _run_foxes(wes_dir)
+
+def test_foxes_timeseries_with_operating_flag():
+    wes_dir = (
+        test_path / "../examples/cases/timeseries_with_operating_flag/wind_energy_system/"
     )
     _run_foxes(wes_dir)
 
