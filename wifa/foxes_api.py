@@ -54,7 +54,8 @@ def run_foxes(
 
     """
 
-    from foxes.input.yaml import read_windio, run_dict
+    from foxes.input.yaml.windio import read_windio_dict
+    from foxes.input.yaml import run_dict
 
     if isinstance(input_yaml, dict):
         wio = input_yaml
@@ -64,7 +65,7 @@ def run_foxes(
         wio = load_yaml(input_yaml)
         idir = input_yaml.parent
 
-    idict, algo, odir = read_windio(wio, verbosity=verbosity)
+    idict, algo, odir = read_windio_dict(wio, verbosity=verbosity)
 
     if output_dir is not None:
         odir = output_dir
