@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - dev
+      - windio-merge
   schedule:
     - cron: '0 4 * * 0' # run at 4 AM UTC every Sunday
     
