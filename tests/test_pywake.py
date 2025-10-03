@@ -12,10 +12,7 @@ from py_wake.site import XRSite
 from py_wake.superposition_models import LinearSum
 from py_wake.tests import npt
 from py_wake.wind_turbines import WindTurbine
-from py_wake.wind_turbines.power_ct_functions import (
-    PowerCtFunctionList,
-    PowerCtTabular,
-)
+from py_wake.wind_turbines.power_ct_functions import PowerCtFunctionList, PowerCtTabular
 from scipy.special import gamma
 from windIO import __path__ as wiop
 from windIO import validate as validate_yaml
@@ -163,20 +160,20 @@ def test_pywake_4wts_operating_flag():
 # fmt: off
 POWER_CT_TABLE = PowerCtTabular(
     [
-        3, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 
-        12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 
+        3, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0,
+        12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0,
         20.0, 21.0, 22.0, 23.0, 24.0, 25.0,
     ],
     [
-        0, 263388.0, 751154.0, 1440738.0, 2355734.0, 3506858.0, 4993092.0, 
-        6849310.0, 9116402.0, 10000754.0, 10009590.0, 10000942.0, 10042678.0, 
-        10003480.0, 10001600.0, 10001506.0, 10013632.0, 10007428.0, 10005360.0, 
+        0, 263388.0, 751154.0, 1440738.0, 2355734.0, 3506858.0, 4993092.0,
+        6849310.0, 9116402.0, 10000754.0, 10009590.0, 10000942.0, 10042678.0,
+        10003480.0, 10001600.0, 10001506.0, 10013632.0, 10007428.0, 10005360.0,
         10002728.0, 10001130.0, 10004984.0, 9997558.0,
     ],
     "W",
     [
-        0.923, 0.923, 0.919, 0.904, 0.858, 0.814, 0.814, 0.814, 0.814, 0.577, 
-        0.419, 0.323, 0.259, 0.211, 0.175, 0.148, 0.126, 0.109, 0.095, 0.084, 
+        0.923, 0.923, 0.919, 0.904, 0.858, 0.814, 0.814, 0.814, 0.814, 0.577,
+        0.419, 0.323, 0.259, 0.211, 0.175, 0.148, 0.126, 0.109, 0.095, 0.084,
         0.074, 0.066, 0.059,
     ],
 )

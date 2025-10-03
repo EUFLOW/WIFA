@@ -1,20 +1,21 @@
-import sys
-from os import path, environ, mkdir
 import os as os
+import random
 
 # from mpi4py import MPI
-import string, random
-from os import sep, mkdir, walk
-from shutil import copy, copytree
+import string
 import sys
-import numpy as np
-from os import path, chdir, environ, getcwd
-import yaml
 
 # from yaml.loader import SafeLoader
 from datetime import datetime, timedelta
-from windIO import validate as validate_yaml, load_yaml
 from functools import reduce
+from os import chdir, environ, getcwd, mkdir, path, sep, walk
+from shutil import copy, copytree
+
+import numpy as np
+import yaml
+from windIO import load_yaml
+from windIO import validate as validate_yaml
+
 import wifa.cs_api.cs_modules.csMeteo.nieuwstadt_stable_profiles_utils as nwstdt
 
 
@@ -197,7 +198,7 @@ class CS_inflow:
         self.dtheta_values = []
         self.dH_values = []
         self.ugeo_values = []
-        self.T0 = 293.15 # Default bottom temperature
+        self.T0 = 293.15  # Default bottom temperature
 
         # Needed for stable profiles
         self.ustar = None
@@ -257,7 +258,6 @@ class CS_study:
         cs_run_folder=None,
         cs_api_path=None,
     ):
-
         # case
         self.cs_run_folder = cs_run_folder
         self.cs_api_path = cs_api_path
@@ -542,7 +542,6 @@ class CS_study:
             cs_launch_command += " --wckey=" + wckey
 
         if remesh and first_case:
-
             # Original: turbine mesh depending on wind_origin
             # salome_launch_command = self.salome_path + " -t python3 "+self.cs_api_path+sep+"cs_modules"+sep+"csLaunch"+sep+"generate_salome_mesh.py args:--wind_origin="+str(self.wind_origin)+",--disk_mesh_size="+str(self.mesh.AD_mesh_cell_size)+",--domain_size="+str(self.mesh.mesh_domain_size)+",--domain_height="+str(self.mesh.domain_height)+",--output_file='"+mesh_file_name+"'"
 
@@ -1164,7 +1163,7 @@ class CS_study:
                     )
                 )
                 self.power_curves.append(power_curve)
-                
+
                 # create cp_curve
                 standard_rho = 1.225
                 cp_curve = np.zeros((len(self.power_curves[j]), 2))
@@ -1568,7 +1567,6 @@ class CS_study:
         ################################################################################
 
     def write_cs_meteo_file(self, cs_meteo_file_name, time_iter, precursor=False):
-
         sea_level_pressure = self.inflow.sea_level_pressure
         reference_pressure = self.inflow.reference_pressure
         #

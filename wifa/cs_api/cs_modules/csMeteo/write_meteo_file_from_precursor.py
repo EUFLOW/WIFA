@@ -6,9 +6,11 @@ Created on Wed Sep 27 16:22:29 2023
 @author: j26483
 """
 
-import numpy as np
-from os import sep, sys
 import argparse
+import sys
+from os import sep
+
+import numpy as np
 
 
 def temp2theta(temp, z_or_dz, P0, Pref=1000.0, g=9.81, Rair=287.0, Cp=1005.0):

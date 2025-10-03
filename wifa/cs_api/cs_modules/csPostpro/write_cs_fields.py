@@ -1,10 +1,12 @@
-from netCDF4 import Dataset
 import sys
 from os import path, sep
-import numpy as np
-import wifa.cs_api.cs_modules.csPostpro.cs_postprocess_utils as cs_pp
+
 import netCDF4 as nc
+import numpy as np
+from netCDF4 import Dataset
 from scipy.interpolate import griddata
+
+import wifa.cs_api.cs_modules.csPostpro.cs_postprocess_utils as cs_pp
 
 
 def get_output_at_plane_and_time(ens, output_varname, origin, normal, time_step):
@@ -38,6 +40,7 @@ def find_closest(z, value):
     closest_indices = np.where(diff == min_diff)
     return closest_indices[0]
 
+
 postpro_dir = sys.argv[1]
 print(postpro_dir)
 file_name = sys.argv[2]
@@ -58,8 +61,7 @@ fields = np.genfromtxt(postprocess_fields_file, delimiter=",", dtype=str)
 #############CS FIELD DATA###################
 # File creation
 
-if sys.argv[5] == "None": 
-
+if sys.argv[5] == "None":
     rootgrp = Dataset(postpro_dir + sep + file_name, "w", format="NETCDF4")
 
     for i, casei in enumerate(cases):
@@ -124,7 +126,8 @@ if sys.argv[5] == "None":
                     rootgrp.variables["wind_speed"][:, j, i] = speed
                 if "wind_direction" in fields:
                     direction = (
-                        np.arctan(velocity[:, 1] / velocity[:, 0]) * 360 / (2 * np.pi) + 270
+                        np.arctan(velocity[:, 1] / velocity[:, 0]) * 360 / (2 * np.pi)
+                        + 270
                     )
                     rootgrp.variables["wind_direction"][:, j, i] = direction
             if "pressure" in fields:
@@ -148,13 +151,12 @@ if sys.argv[5] == "None":
 #########################################################################
 
 if sys.argv[5] != "None":
-
     x_bounds = [float(sys.argv[5]), float(sys.argv[6])]
     y_bounds = [float(sys.argv[7]), float(sys.argv[8])]
     dx = float(sys.argv[9])
     dy = float(sys.argv[10])
 
-    rootgrp = nc.Dataset(postpro_dir + sep +  file_name, "w", format="NETCDF4")
+    rootgrp = nc.Dataset(postpro_dir + sep + file_name, "w", format="NETCDF4")
 
     # Define the structured grid
     x_list = np.arange(x_bounds[0], x_bounds[1] + dx, dx)
@@ -230,15 +232,19 @@ if sys.argv[5] != "None":
                     velocity[m, :] = field.GetTuple3(index)
 
                 if "wind_speed" in fields:
-                    speed = np.sqrt(velocity[:, 0]**2 + velocity[:, 1]**2)
-                    speed_interp = griddata((x0, y0), speed, (x_grid, y_grid), method='linear')
+                    speed = np.sqrt(velocity[:, 0] ** 2 + velocity[:, 1] ** 2)
+                    speed_interp = griddata(
+                        (x0, y0), speed, (x_grid, y_grid), method="linear"
+                    )
                     rootgrp.variables["wind_speed"][i, j, :, :] = speed_interp.T
 
                 if "wind_direction" in fields:
                     direction = (
                         np.arctan2(velocity[:, 1], velocity[:, 0]) * 180 / np.pi + 270
                     )
-                    direction_interp = griddata((x0, y0), direction, (x_grid, y_grid), method='linear')
+                    direction_interp = griddata(
+                        (x0, y0), direction, (x_grid, y_grid), method="linear"
+                    )
                     rootgrp.variables["wind_direction"][i, j, :, :] = direction_interp.T
 
             if "pressure" in fields:
@@ -246,7 +252,9 @@ if sys.argv[5] != "None":
                 field = data.GetCellData().GetArray("total_pressure")
                 for m, index in enumerate(indices):
                     pressure[m] = field.GetTuple(index)
-                pressure_interp = griddata((x0, y0), pressure, (x_grid, y_grid), method='linear')
+                pressure_interp = griddata(
+                    (x0, y0), pressure, (x_grid, y_grid), method="linear"
+                )
                 rootgrp.variables["pressure"][i, j, :, :] = pressure_interp.T
 
             if "tke" in fields:
@@ -254,7 +262,7 @@ if sys.argv[5] != "None":
                 field = data.GetCellData().GetArray("k")
                 for m, index in enumerate(indices):
                     tke[m] = field.GetTuple(index)
-                tke_interp = griddata((x0, y0), tke, (x_grid, y_grid), method='linear')
+                tke_interp = griddata((x0, y0), tke, (x_grid, y_grid), method="linear")
                 rootgrp.variables["tke"][i, j, :, :] = tke_interp.T
 
     # Close the NetCDF file

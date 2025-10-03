@@ -1,17 +1,18 @@
-import numpy as np
-from collections import OrderedDict
-import warnings
-import pandas as pd
-import matplotlib.pyplot as plt
-import xarray as xr
-import os
-import yaml
 import argparse
-from scipy.interpolate import interp1d
-from scipy.special import gamma
-from windIO import load_yaml, validate as validate_yaml, dict_to_netcdf
+import os
+import warnings
+from collections import OrderedDict
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import xarray as xr
+import yaml
+from scipy.interpolate import interp1d
+from scipy.special import gamma
+from windIO import dict_to_netcdf, load_yaml
+from windIO import validate as validate_yaml
 
 # Define default values for wind_deficit_model parameters
 DEFAULTS = {
@@ -97,41 +98,41 @@ def weighted_quantile(
 
 
 def run_pywake(yamlFile, output_dir="output"):
-
-    from py_wake import HorizontalGrid
-    from py_wake.wind_turbines.power_ct_functions import PowerCtFunctionList, PowerCtTabular, PowerCtFunctions
+    from py_wake import NOJ, BastankhahGaussian, HorizontalGrid
+    from py_wake.deficit_models import SelfSimilarityDeficit2020
     from py_wake.deficit_models.fuga import FugaDeficit
-    from py_wake.site import XRSite
-    from py_wake.wind_turbines import WindTurbine
-    from py_wake.wind_farm_models import PropagateDownwind, All2AllIterative
-    from py_wake.examples.data.hornsrev1 import Hornsrev1Site
-    from py_wake.wind_turbines.power_ct_functions import PowerCtTabular
-    from py_wake.deflection_models import JimenezWakeDeflection
-    from py_wake.deficit_models.noj import NOJLocalDeficit
     from py_wake.deficit_models.gaussian import (
         BastankhahGaussianDeficit,
-        TurboGaussianDeficit,
         BlondelSuperGaussianDeficit2020,
+        TurboGaussianDeficit,
     )
+    from py_wake.deficit_models.noj import NOJLocalDeficit
+    from py_wake.deflection_models import JimenezWakeDeflection
+    from py_wake.examples.data.hornsrev1 import Hornsrev1Site
+    from py_wake.rotor_avg_models import (
+        CGIRotorAvg,
+        EqGridRotorAvg,
+        GaussianOverlapAvgModel,
+        GQGridRotorAvg,
+        GridRotorAvg,
+        PolarGridRotorAvg,
+        RotorCenter,
+        polar_gauss_quadrature,
+    )
+    from py_wake.site import XRSite
+    from py_wake.superposition_models import LinearSum, SquaredSum
     from py_wake.turbulence_models import (
+        CrespoHernandez,
         STF2005TurbulenceModel,
         STF2017TurbulenceModel,
-        CrespoHernandez,
     )
-    from py_wake import NOJ, BastankhahGaussian
-    from py_wake.deficit_models import SelfSimilarityDeficit2020
-    from py_wake.superposition_models import LinearSum, SquaredSum
-    from py_wake.rotor_avg_models import (
-        RotorCenter,
-        GridRotorAvg,
-        EqGridRotorAvg,
-        GQGridRotorAvg,
-        CGIRotorAvg,
-        PolarGridRotorAvg,
-        polar_gauss_quadrature,
-        GaussianOverlapAvgModel,
+    from py_wake.wind_farm_models import All2AllIterative, PropagateDownwind
+    from py_wake.wind_turbines import WindTurbine, WindTurbines
+    from py_wake.wind_turbines.power_ct_functions import (
+        PowerCtFunctionList,
+        PowerCtFunctions,
+        PowerCtTabular,
     )
-    from py_wake.wind_turbines import WindTurbines
 
     def dict_to_site(resource_dict):
         resource_ds = dict_to_netcdf(resource_dict)
@@ -150,7 +151,7 @@ def run_pywake(yamlFile, output_dir="output"):
                 resource_ds = resource_ds.rename({name: to_rename[name]})
         print("making site with ", resource_ds)
         return XRSite(resource_ds)
-    
+
     # allow yamlFile to be an already parsed input dict
     if not isinstance(yamlFile, dict):
         validate_yaml(yamlFile, "plant/wind_energy_system")
@@ -204,7 +205,7 @@ def run_pywake(yamlFile, output_dir="output"):
             powers = np.interp(speeds, cp_ws, pows)
         else:
             cps_int = np.interp(speeds, cp_ws, cp)
-            powers = 0.5 * cps_int * speeds ** 3 * 1.225 * (rd / 2) ** 2 * np.pi
+            powers = 0.5 * cps_int * speeds**3 * 1.225 * (rd / 2) ** 2 * np.pi
 
         if "cutin_wind_speed" in turbine_dat["performance"]:
             cutin = turbine_dat["performance"]["cutin_wind_speed"]
@@ -223,10 +224,15 @@ def run_pywake(yamlFile, output_dir="output"):
             ws_cutout=cutout,
         )
         this_turbine.powerCtFunction = PowerCtFunctionList(
-            key='operating',
-            powerCtFunction_lst=[PowerCtTabular(ws=[0, 100], power=[0, 0], power_unit='w', ct=[0, 0]),  # 0=No power and ct
-                             this_turbine.powerCtFunction],  # 1=Normal operation
-            default_value=1)
+            key="operating",
+            powerCtFunction_lst=[
+                PowerCtTabular(
+                    ws=[0, 100], power=[0, 0], power_unit="w", ct=[0, 0]
+                ),  # 0=No power and ct
+                this_turbine.powerCtFunction,
+            ],  # 1=Normal operation
+            default_value=1,
+        )
         turbines.append(this_turbine)
 
     if len(turbines) == 1:
@@ -256,47 +262,74 @@ def run_pywake(yamlFile, output_dir="output"):
     WFYUB = np.max(system_dat["site"]["boundaries"]["polygons"][0]["y"])
     checkk = "flow_field" in system_dat["attributes"]["model_outputs_specification"]
     if checkk:
-        checkk = "z_planes" in system_dat["attributes"]["model_outputs_specification"]["flow_field"]
+        checkk = (
+            "z_planes"
+            in system_dat["attributes"]["model_outputs_specification"]["flow_field"]
+        )
     if (
         checkk
         and "xlb"
-        in system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes']
-    ):
-        WFXLB = system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes'][
-            "xlb"
+        in system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
         ]
+    ):
+        WFXLB = system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
+        ]["xlb"]
     if (
         checkk
         and "xub"
-        in system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes']
-    ):
-        WFXUB = system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes'][
-            "xub"
+        in system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
         ]
+    ):
+        WFXUB = system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
+        ]["xub"]
     if (
         checkk
         and "ylb"
-        in system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes']
-    ):
-        WFYLB = system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes'][
-            "ylb"
+        in system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
         ]
+    ):
+        WFYLB = system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
+        ]["ylb"]
     if (
         checkk
         and "yub"
-        in system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes']
-    ):
-        WFYUB = system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes'][
-            "yub"
+        in system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
         ]
+    ):
+        WFYUB = system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
+        ]["yub"]
 
-    if checkk and 'dx' in system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes']:
-        WFDX = system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes']['dx']
+    if (
+        checkk
+        and "dx"
+        in system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
+        ]
+    ):
+        WFDX = system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
+        ]["dx"]
     else:
         WFDX = (WFXUB - WFXLB) / 100
 
-    if checkk and 'dy' in system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes']:
-        WFDY = system_dat["attributes"]["model_outputs_specification"]["flow_field"]['z_planes']['dy']
+    if (
+        checkk
+        and "dy"
+        in system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
+        ]
+    ):
+        WFDY = system_dat["attributes"]["model_outputs_specification"]["flow_field"][
+            "z_planes"
+        ]["dy"]
     else:
         WFDY = (WFYUB - WFYLB) / 100
 
@@ -318,25 +351,36 @@ def run_pywake(yamlFile, output_dir="output"):
         wind_resource_timeseries = resource_dat["wind_resource"]["time"]
         times = wind_resource_timeseries
         cases_idx = np.ones(len(times)).astype(bool)
-        if 'model_outputs_specification' in system_dat["attributes"] and 'run_configuration' in system_dat["attributes"]['model_outputs_specification']:
-            run_config = system_dat["attributes"]['model_outputs_specification']['run_configuration']
-            if 'times_run' in run_config and not run_config['times_run'].get('all_occurences', True):
-                if 'subset' in run_config['times_run']:
-                    cases_idx = run_config['times_run']['subset']
-
+        if (
+            "model_outputs_specification" in system_dat["attributes"]
+            and "run_configuration"
+            in system_dat["attributes"]["model_outputs_specification"]
+        ):
+            run_config = system_dat["attributes"]["model_outputs_specification"][
+                "run_configuration"
+            ]
+            if "times_run" in run_config and not run_config["times_run"].get(
+                "all_occurences", True
+            ):
+                if "subset" in run_config["times_run"]:
+                    cases_idx = run_config["times_run"]["subset"]
 
         if "height" in resource_dat["wind_resource"].keys():
             heights = resource_dat["wind_resource"]["height"]
         else:
             heights = None
         ws = np.array(resource_dat["wind_resource"]["wind_speed"]["data"])[cases_idx]
-        wd = np.array(resource_dat["wind_resource"]["wind_direction"]["data"])[cases_idx]
+        wd = np.array(resource_dat["wind_resource"]["wind_direction"]["data"])[
+            cases_idx
+        ]
 
-        if 'operating' in resource_dat["wind_resource"].keys():
-             operating = np.array(resource_dat["wind_resource"]['operating']['data'])[cases_idx].T
-             assert(operating.shape[0] == len(x))
+        if "operating" in resource_dat["wind_resource"].keys():
+            operating = np.array(resource_dat["wind_resource"]["operating"]["data"])[
+                cases_idx
+            ].T
+            assert operating.shape[0] == len(x)
         else:
-             operating = np.ones((len(x), len(cases_idx)))
+            operating = np.ones((len(x), len(cases_idx)))
 
         if len(hub_heights) > 1:
             speeds = []
@@ -400,7 +444,9 @@ def run_pywake(yamlFile, output_dir="output"):
         if "turbulence_intensity" not in resource_dat["wind_resource"]:
             TI = 0.02
         else:
-            TI = np.array(resource_dat["wind_resource"]["turbulence_intensity"]["data"])[cases_idx]
+            TI = np.array(
+                resource_dat["wind_resource"]["turbulence_intensity"]["data"]
+            )[cases_idx]
             if len(hub_heights) > 1:
                 TIs = []
                 seen = []
@@ -503,14 +549,16 @@ def run_pywake(yamlFile, output_dir="output"):
 
         timeseries = False
         site_ds = dict_to_netcdf(resource_dat["wind_resource"])
-        if 'x' in site_ds.turbulence_intensity.dims:
+        if "x" in site_ds.turbulence_intensity.dims:
             interpolated_ti = site_ds.turbulence_intensity.interp(x=x, y=y)
-            if 'height' in interpolated_ti.dims:
-                interpolated_ti = interpolated_ti.interp(height=hub_heights['0'])
-            TI = np.array([interpolated_ti.isel(x=i, y=i).values for i in range(len(x))])
+            if "height" in interpolated_ti.dims:
+                interpolated_ti = interpolated_ti.interp(height=hub_heights["0"])
+            TI = np.array(
+                [interpolated_ti.isel(x=i, y=i).values for i in range(len(x))]
+            )
         else:
-           TI = resource_dat["wind_resource"]["turbulence_intensity"]["data"]
-         
+            TI = resource_dat["wind_resource"]["turbulence_intensity"]["data"]
+
     else:
         timeseries = False
         ws = resource_dat["wind_resource"]["wind_speed"]
@@ -534,17 +582,31 @@ def run_pywake(yamlFile, output_dir="output"):
     print("Running deficit ", wind_deficit_model_data)
     if wind_deficit_model_data["name"] == "Jensen":
         wakeModel = NOJLocalDeficit
-        #deficit_param_mapping = {"k": "k", "k2": "k2"}
-        if "k_b" in system_dat["attributes"]["analysis"]["wind_deficit_model"]['wake_expansion_coefficient']:
+        # deficit_param_mapping = {"k": "k", "k2": "k2"}
+        if (
+            "k_b"
+            in system_dat["attributes"]["analysis"]["wind_deficit_model"][
+                "wake_expansion_coefficient"
+            ]
+        ):
             # Handle k2 if present, default to 0.0 if not
-            if "k_a" in system_dat["attributes"]["analysis"]["wind_deficit_model"]['wake_expansion_coefficient']:
-               k_a = system_dat["attributes"]["analysis"]["wind_deficit_model"]['wake_expansion_coefficient']['k_a']
+            if (
+                "k_a"
+                in system_dat["attributes"]["analysis"]["wind_deficit_model"][
+                    "wake_expansion_coefficient"
+                ]
+            ):
+                k_a = system_dat["attributes"]["analysis"]["wind_deficit_model"][
+                    "wake_expansion_coefficient"
+                ]["k_a"]
             else:
-               k_a = 0
+                k_a = 0
 
-            k_b = system_dat["attributes"]["analysis"]["wind_deficit_model"]['wake_expansion_coefficient']['k_b']
+            k_b = system_dat["attributes"]["analysis"]["wind_deficit_model"][
+                "wake_expansion_coefficient"
+            ]["k_b"]
             deficit_args["a"] = [k_a, k_b]
-    
+
     elif wind_deficit_model_data["name"].lower() == "bastankhah2014":
         wakeModel = BastankhahGaussianDeficit
         if (
@@ -682,7 +744,7 @@ def run_pywake(yamlFile, output_dir="output"):
             "%s superposition model not implemented" % superposition_model_data["name"]
         )
 
-    print('using superposition ', superposition_model_data)
+    print("using superposition ", superposition_model_data)
     # Map the rotor averaging model
     if rotor_averaging_data["name"].lower() == "center":
         print("Using Center Average")
@@ -730,7 +792,16 @@ def run_pywake(yamlFile, output_dir="output"):
     #    sim_res = noj(x, y)
     # sim_res = windFarmModel(x, y, type=turbine_types, time=timeseries, ws=ws, wd=wd, TI=0, yaw=0, tilt=0)
     sim_res = windFarmModel(
-        x, y, type=turbine_types, time=timeseries, ws=ws, wd=wd, TI=TI, yaw=0, tilt=0, operating=operating,
+        x,
+        y,
+        type=turbine_types,
+        time=timeseries,
+        ws=ws,
+        wd=wd,
+        TI=TI,
+        yaw=0,
+        tilt=0,
+        operating=operating,
     )
     aep = sim_res.aep(normalize_probabilities=not timeseries).sum()
     print("aep is ", aep, "GWh")
@@ -858,37 +929,35 @@ def run_pywake(yamlFile, output_dir="output"):
         "flow_field" in system_dat["attributes"]["model_outputs_specification"]
         and not timeseries
     ):
-
         # z_planes = system_dat['attributes']['model_outputs_specification']['flow_field']
         # sorted(np.append(list(hub_heights.values()), additional_heights))
         # if 'x_bounds' in  z_planes
         # compute flow map for specified directions (wd) and speeds (ws)
         if timeseries:
-           flow_map = sim_res.flow_box(
-               x=np.arange(WFXLB, WFXUB + WFDX, WFDX),
-               y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
-               h=additional_heights,
-               time=sim_res.time,
-               #operating=operating # TODO
-           )
+            flow_map = sim_res.flow_box(
+                x=np.arange(WFXLB, WFXUB + WFDX, WFDX),
+                y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
+                h=additional_heights,
+                time=sim_res.time,
+                # operating=operating # TODO
+            )
 
-           # remove unwanted data
-           flow_map = flow_map.drop_vars(["WD", "WS", "TI", "P"])
+            # remove unwanted data
+            flow_map = flow_map.drop_vars(["WD", "WS", "TI", "P"])
         else:
-           flow_map = sim_res.flow_box(
-               x=np.arange(WFXLB, WFXUB + WFDX, WFDX),
-               y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
-               h=list(hub_heights.values())
-               #operating=operating # TODO
-           )
-
+            flow_map = sim_res.flow_box(
+                x=np.arange(WFXLB, WFXUB + WFDX, WFDX),
+                y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
+                h=list(hub_heights.values())
+                # operating=operating # TODO
+            )
 
         # raise warning if user requests data we can not provide
         if any(
             element not in ["velocity_u", "turbulence_intensity"]
-            for element in system_dat["attributes"][
-                "model_outputs_specification"
-            ]["flow_field"]["output_variables"]
+            for element in system_dat["attributes"]["model_outputs_specification"][
+                "flow_field"
+            ]["output_variables"]
         ):
             warnings.warn("PyWake can only output velocity_u and turbulence_intensity")
 
@@ -899,7 +968,7 @@ def run_pywake(yamlFile, output_dir="output"):
                 "flow_field"
             ]["output_variables"]
         ):
-            #flow_map = flow_map.drop_vars(["TI_eff"])
+            # flow_map = flow_map.drop_vars(["TI_eff"])
             pass
         if (
             "velocity_u"
@@ -908,7 +977,7 @@ def run_pywake(yamlFile, output_dir="output"):
             ]["output_variables"]
         ):
             pass
-            #flow_map = flow_map.drop_vars(["WS_eff"])
+            # flow_map = flow_map.drop_vars(["WS_eff"])
 
     elif (
         "flow_field" in system_dat["attributes"]["model_outputs_specification"]
@@ -936,7 +1005,7 @@ def run_pywake(yamlFile, output_dir="output"):
                 y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
                 h=additional_heights,
                 time=sim_res.time.values,
-                #operating=operating,
+                # operating=operating,
             )
         # flow_map = sim_res.flow_map(HorizontalGrid(x = np.linspace(WFXLB, WFXUB, 100),
     # y = np.linspace(WFYLB, WFYUB, 100)))
@@ -951,7 +1020,7 @@ def run_pywake(yamlFile, output_dir="output"):
         # save data
         flow_map = (
             flow_map[["WS_eff", "TI_eff"]]
-            #.drop(["wd", "ws"])
+            # .drop(["wd", "ws"])
             .rename(
                 {
                     "h": "z",
@@ -1043,7 +1112,6 @@ def run_pywake(yamlFile, output_dir="output"):
 
 
 def run():
-
     parser = argparse.ArgumentParser()
     parser.add_argument("input_yaml", help="The input yaml file")
     args = parser.parse_args()

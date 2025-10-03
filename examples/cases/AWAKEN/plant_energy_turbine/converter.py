@@ -1,7 +1,8 @@
-import sys
-import re
-import yaml
 import os
+import re
+import sys
+
+import yaml
 
 
 class NoCurlyBracesDumper(yaml.SafeDumper):

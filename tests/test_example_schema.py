@@ -1,8 +1,10 @@
-import pytest
-from pathlib import Path
 import os
-from windIO import validate as validate_yaml, load_yaml
+from pathlib import Path
+
+import pytest
 from windIO import __path__ as wiop
+from windIO import load_yaml
+from windIO import validate as validate_yaml
 
 
 # Setup fixtures
@@ -107,17 +109,18 @@ def test_windio_4turbines_profiles_stable_schema(base_path, windio_path, schema_
     )
     validate_yaml(grid_yaml, schema_path)
 
+
 def test_operating_flag_timeseries(base_path, windio_path, schema_path):
     base_yaml = (
         base_path / "timeseries_with_operating_flag/wind_energy_system/system.yaml"
     )
     validate_yaml(base_yaml, schema_path)
 
+
 def test_simple_wind_rose(base_path, windio_path, schema_path):
-    base_yaml = (
-        base_path / "simple_wind_rose/wind_energy_system/system.yaml"
-    )
+    base_yaml = base_path / "simple_wind_rose/wind_energy_system/system.yaml"
     validate_yaml(base_yaml, schema_path)
+
 
 def test_hetero_wind_rose(base_path, windio_path, schema_path):
     base_yaml = (
@@ -125,9 +128,7 @@ def test_hetero_wind_rose(base_path, windio_path, schema_path):
     )
     validate_yaml(base_yaml, schema_path)
 
-    base_yaml = (
-        base_path / "heterogeneous_wind_rose_map/wind_energy_system/system.yaml"
-    )
+    base_yaml = base_path / "heterogeneous_wind_rose_map/wind_energy_system/system.yaml"
     validate_yaml(base_yaml, schema_path)
 
 

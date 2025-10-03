@@ -11,5 +11,3 @@ PyWakeEllipSys
 a Python interface of the closed-sourced CFD flow solver `EllipSys <https://ellipsys.pages.windenergy.dtu.dk/docs/>`__.
 PyWakeEllipSys uses the same API as PyWake and can simulate wind farm AEP with Reynolds-averaged
 Navier-Stokes using a simple Python script, provided that EllipSys is installed on a HPC.
-
-

@@ -1,9 +1,10 @@
-from wifa.wayve_api import run_wayve
-from windIO import validate as validate_yaml
 import os
 from pathlib import Path
-from windIO import __path__ as wiop
 
+from windIO import __path__ as wiop
+from windIO import validate as validate_yaml
+
+from wifa.wayve_api import run_wayve
 
 test_path = Path(os.path.dirname(__file__))
 windIO_path = Path(wiop[0])

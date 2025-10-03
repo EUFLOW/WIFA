@@ -1,18 +1,20 @@
-from wifa.cs_api.cs_modules.csLaunch.cs_launch_modules import *
 import os as os
-from os import sep, mkdir, walk
-import numpy as np
-from datetime import datetime
 import shutil
+from datetime import datetime
+from os import mkdir, sep, walk
+
+import numpy as np
+
 from wifa.cs_api import (
-    cs_exe_path,
     cs_api_path,
-    salome_exe_path,
+    cs_env_command,
+    cs_exe_path,
     python_scripts_env_command,
     python_scripts_exe,
-    cs_env_command,
     salome_env_command,
+    salome_exe_path,
 )
+from wifa.cs_api.cs_modules.csLaunch.cs_launch_modules import *
 
 
 def initialize_cs_case_from_windio(windio_input, output_dir):
@@ -165,7 +167,9 @@ def run_cs_windfarm_study(windfarm_study, test_mode=False, postprocess_only=Fals
                 prec_notebook_parameters["ureff"] = np.round(
                     windfarm_study.inflow.wind_velocity[j], 2
                 )
-                prec_notebook_parameters["t0"] = (
+                prec_notebook_parameters[
+                    "t0"
+                ] = (
                     windfarm_study.inflow.T0  # 20 deg Celcius, arbitrary #TODO: user choice?
                 )
                 farm_notebook_parameters["teta"] = np.round(
@@ -185,8 +189,10 @@ def run_cs_windfarm_study(windfarm_study, test_mode=False, postprocess_only=Fals
                     precursor = True
                     #
                     if np.abs(windfarm_study.inflow.LMO_values[j]) > 1000:
-                        windfarm_study.inflow.pottemp[:, j] = (
-                            windfarm_study.generate_temp_CNBL(j, windfarm_study.inflow.T0)
+                        windfarm_study.inflow.pottemp[
+                            :, j
+                        ] = windfarm_study.generate_temp_CNBL(
+                            j, windfarm_study.inflow.T0
                         )
                         windfarm_study.inflow.u[:, j] = (
                             np.ones(len(windfarm_study.inflow.heights))
@@ -212,8 +218,17 @@ def run_cs_windfarm_study(windfarm_study, test_mode=False, postprocess_only=Fals
                         prec_notebook_parameters["tstar"] = 0
                         prec_notebook_parameters["zi"] = 0
                     elif windfarm_study.inflow.LMO_values[j] > 0:
-                        pottemp, u, v, tke, epsilon, ustar, tstar, zi = (
-                            windfarm_study.generate_prof_stable(j, windfarm_study.inflow.T0)
+                        (
+                            pottemp,
+                            u,
+                            v,
+                            tke,
+                            epsilon,
+                            ustar,
+                            tstar,
+                            zi,
+                        ) = windfarm_study.generate_prof_stable(
+                            j, windfarm_study.inflow.T0
                         )
                         windfarm_study.inflow.pottemp[:, j] = pottemp
                         windfarm_study.inflow.u[:, j] = u
@@ -292,9 +307,9 @@ def run_cs_windfarm_study(windfarm_study, test_mode=False, postprocess_only=Fals
                 farm_notebook_parameters["nura"] = 3.0
                 farm_notebook_parameters["Lra"] = windfarm_study.mesh.damping_length
                 farm_notebook_parameters["Sra"] = 2.0
-                farm_notebook_parameters["start_rad"] = (
-                    20000  # default, modified with domain size in run_case
-                )
+                farm_notebook_parameters[
+                    "start_rad"
+                ] = 20000  # default, modified with domain size in run_case
             if turbine_control:
                 farm_notebook_parameters["control"] = 1
 
@@ -373,7 +388,6 @@ def validate_yaml_code_saturne(windio_input):
 
 
 def run():
-
     parser = argparse.ArgumentParser()
     parser.add_argument("input_yaml", help="The input yaml file")
     args = parser.parse_args()

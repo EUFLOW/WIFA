@@ -73,4 +73,3 @@ WAYVE can be downloaded and installed from `gitlab <https://gitlab.kuleuven.be/T
   git clone git@gitlab.kuleuven.be:TFSO-software/wayve.git
   cd wayve
   pip install .
-  
