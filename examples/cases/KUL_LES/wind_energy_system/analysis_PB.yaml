@@ -52,7 +52,6 @@ HPC_config:
   run_node_number: 5
   run_ntasks_per_node: 48
   run_wall_time_hours: 6
-  run_partition: ""
   #
   mesh_node_number: 2
   mesh_ntasks_per_node: 48

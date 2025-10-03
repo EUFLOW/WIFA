@@ -1,8 +1,9 @@
-import pytest
-from pathlib import Path
 import os
-from windIO.utils.yml_utils import validate_yaml, Loader, load_yaml
+from pathlib import Path
+
+import pytest
 from windIO import __path__ as wiop
+from windIO.utils.yml_utils import Loader, load_yaml, validate_yaml
 
 
 # Setup fixtures

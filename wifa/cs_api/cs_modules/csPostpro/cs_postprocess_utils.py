@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import sys
-import vtk
-import numpy as np
+
 import matplotlib.tri as tri
+import numpy as np
+import vtk
 from vtk.util.numpy_support import vtk_to_numpy as vtk_to_np
 
 

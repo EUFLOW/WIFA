@@ -1,18 +1,18 @@
-import numpy as np
-from os import sys, path, environ
-from os import sep, mkdir, walk
-from os import chdir, environ, getcwd
 import os as os
+import random
+import string
 import sys
-import string, random
+from os import chdir, environ, getcwd, mkdir, path, sep, walk
 from shutil import copy, copytree
+
 import matplotlib.pyplot as plt
 import netCDF4 as nc
-import scipy as scipy
-import xarray as xr
+import numpy as np
 import openturns as ot
 import openturns.viewer as viewer
+import scipy as scipy
 import scipy.stats as stats
+import xarray as xr
 from build_PCE import *
 
 #########Load the data############
@@ -52,7 +52,6 @@ for i in range(number_of_turbines):
     else:
         std_to_test = sample_std
     if std_to_test != 0:
-
         copula = copula_type
 
         polynomialChaosResult = construct_PCE_ot(

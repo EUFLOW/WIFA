@@ -1,7 +1,9 @@
-from netCDF4 import Dataset
 import sys
 from os import path, sep
+
 import numpy as np
+from netCDF4 import Dataset
+
 import wifa.cs_api.cs_modules.csPostpro.cs_postprocess_utils as cs_pp
 
 

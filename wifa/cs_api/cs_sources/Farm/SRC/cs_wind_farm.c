@@ -717,4 +717,3 @@ interp_ct_or_cp(cs_real_t *ct_or_cp_values, cs_real_t *ct_or_cp_speeds, \
   }
   return interpolated_ct_or_cp;
 }
-

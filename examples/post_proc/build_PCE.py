@@ -1,12 +1,12 @@
-import openturns as ot
 from operator import itemgetter
+
 import numpy as np
+import openturns as ot
 
 
 def construct_PCE_ot(
     training_input, training_output, marginals, copula, degree, LARS=True
 ):
-
     ##########################INPUTS##########################
     ##########################################################
     Nt = len(training_input)

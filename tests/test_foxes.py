@@ -1,10 +1,11 @@
-from wifa.foxes_api import run_foxes
-from windIO.utils.yml_utils import validate_yaml
-from pathlib import Path
-from windIO import __path__ as wiop
-from foxes import Engine, reset_engine
 import os
+from pathlib import Path
 
+from foxes import Engine, reset_engine
+from windIO import __path__ as wiop
+from windIO.utils.yml_utils import validate_yaml
+
+from wifa.foxes_api import run_foxes
 
 test_path = Path(os.path.dirname(__file__))
 windIO_path = Path(wiop[0])

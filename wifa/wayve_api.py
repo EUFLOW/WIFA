@@ -1,13 +1,14 @@
 # General packages
-import numpy as np
-from scipy.interpolate import interp1d
-from windIO.utils.yml_utils import load_yaml
+import argparse
+import warnings
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import mpmath
-import warnings
+import numpy as np
 import xarray as xr
-import argparse
-from pathlib import Path
+from scipy.interpolate import interp1d
+from windIO.utils.yml_utils import load_yaml
 
 
 def run_wayve(yamlFile, output_dir="output", debug_mode=False):
@@ -15,7 +16,7 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
     from wayve.apm import APM
     from wayve.grid.grid import Stat2Dgrid
     from wayve.momentum_flux_parametrizations import FrictionCoefficients
-    from wayve.pressure.gravity_waves.gravity_waves import Uniform, NonUniform
+    from wayve.pressure.gravity_waves.gravity_waves import NonUniform, Uniform
     from wayve.solvers import FixedPointIteration
 
     #####################
@@ -496,9 +497,10 @@ def read_turbine_type(turb_dat):
         cp_ws = np.array(turb_dat["performance"]["power_curve"]["power_wind_speeds"])
         pows = np.array(turb_dat["performance"]["power_curve"]["power_values"])
         # Filter out Nan values and zero wind speeds
-        selection = np.logical_and(np.greater(cp_ws, 0.),
-                                   np.logical_not(np.logical_or(np.isnan(cp_ws),
-                                                                np.isnan(pows))))
+        selection = np.logical_and(
+            np.greater(cp_ws, 0.0),
+            np.logical_not(np.logical_or(np.isnan(cp_ws), np.isnan(pows))),
+        )
         cp_ws = cp_ws[selection]
         pows = pows[selection]
         # Convert power curve to Cp curve
@@ -516,10 +518,10 @@ def read_turbine_type(turb_dat):
 
 def wf_setup(farm_dat, analysis_dat, L_filter=1.0e3, debug_mode=False):
     # WAYVE imports
-    from wayve.forcing.wind_farms.wind_farm import WindFarm, Turbine
+    from wayve.forcing.apm_forcing import ForcingComposite
     from wayve.forcing.wind_farms.dispersive_stresses import DispersiveStresses
     from wayve.forcing.wind_farms.entrainment import ConstantFlux
-    from wayve.forcing.apm_forcing import ForcingComposite
+    from wayve.forcing.wind_farms.wind_farm import Turbine, WindFarm
 
     ####################
     # Set up WindFarm object
@@ -589,18 +591,18 @@ def wf_setup(farm_dat, analysis_dat, L_filter=1.0e3, debug_mode=False):
 
 def wm_coupling_setup(analysis_dat, wake_model):
     # WAYVE imports
-    from wayve.forcing.wind_farms.wake_model_coupling.coupling_methods.varying_background import (
-        WakeModelVelocityHandler,
-        SelfSimilarWMVH,
-    )
-    from wayve.forcing.wind_farms.wake_model_coupling.coupling_methods.velocity_matching import (
-        VelocityMatching,
-    )
     from wayve.forcing.wind_farms.wake_model_coupling.coupling_methods.pressure_based import (
         PressureBased,
     )
     from wayve.forcing.wind_farms.wake_model_coupling.coupling_methods.upstream import (
         Upstream,
+    )
+    from wayve.forcing.wind_farms.wake_model_coupling.coupling_methods.varying_background import (
+        SelfSimilarWMVH,
+        WakeModelVelocityHandler,
+    )
+    from wayve.forcing.wind_farms.wake_model_coupling.coupling_methods.velocity_matching import (
+        VelocityMatching,
     )
 
     # Read inputs
@@ -636,10 +638,10 @@ def wm_coupling_setup(analysis_dat, wake_model):
 
 def wake_model_setup(analysis_dat, debug_mode=False):
     # WAYVE imports
+    from wayve.couplings.foxes_coupling import FoxesWakeModel
     from wayve.forcing.wind_farms.wake_model_coupling.wake_models.lanzilao_merging import (
         Lanzilao,
     )
-    from wayve.couplings.foxes_coupling import FoxesWakeModel
 
     # WM tool
     if analysis_dat["wake_tool"] == "wayve":
@@ -661,8 +663,8 @@ def wake_model_setup(analysis_dat, debug_mode=False):
         wake_model = Lanzilao(ka=k_a, kb=k_b, eps_beta=ceps)
     elif analysis_dat["wake_tool"] == "foxes":
         from foxes import ModelBook
-        from foxes.utils import Dict
         from foxes.input.yaml.windio.read_attributes import _read_analysis
+        from foxes.utils import Dict
 
         verbosity = 1 if debug_mode else 0
 

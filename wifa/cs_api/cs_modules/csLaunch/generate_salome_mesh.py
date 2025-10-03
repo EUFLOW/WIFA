@@ -5,26 +5,30 @@
 ###
 
 
-import sys
-import salome
 import os
+import sys
+
+import salome
 
 salome.salome_init()
+from typing import List
+
 import salome_notebook
 
 notebook = salome_notebook.NoteBook()
 import argparse
+import math
+from math import *
+
+import GEOM
+import numpy as np
+import SALOMEDS
+from salome.geom import geomBuilder
 
 ###
 ### GEOM component
 ###
 
-import GEOM
-from salome.geom import geomBuilder
-import math
-from math import *
-import SALOMEDS
-import numpy as np
 
 geompy = geomBuilder.New()
 
@@ -311,8 +315,8 @@ geompy.addToStudy(Partition_2, "Partition_2")
 # Creation des groupes (faces) pour CL
 # Récuperation des paquets dedges en vis à vis
 
-edges_x_raff1 = []
-edges_y_raff1 = []
+edges_x_raff1: List = []
+edges_y_raff1: List = []
 lListEdges = geompy.Propagate(Union_raff1)
 for lEdges in lListEdges:
     edges = geompy.SubShapeAll(lEdges, geompy.ShapeType["EDGE"])
@@ -334,8 +338,8 @@ geompy.UnionList(alongx_raff1, edges_x_raff1)
 geompy.UnionList(alongy_raff1, edges_y_raff1)
 
 # Récuperation des paquets dedges en vis à vis
-edges_x_raff2 = []
-edges_y_raff2 = []
+edges_x_raff2: List = []
+edges_y_raff2: List = []
 lListEdges = geompy.Propagate(Union_raff2)
 for lEdges in lListEdges:
     edges = geompy.SubShapeAll(lEdges, geompy.ShapeType["EDGE"])
@@ -358,8 +362,8 @@ geompy.UnionList(alongx_raff2, edges_x_raff2)
 geompy.UnionList(alongy_raff2, edges_y_raff2)
 
 # Récuperation des paquets dedges en vis à vis
-edges_x_raff3 = []
-edges_y_raff3 = []
+edges_x_raff3: List = []
+edges_y_raff3: List = []
 lListEdges = geompy.Propagate(Union_raff3)
 for lEdges in lListEdges:
     edges = geompy.SubShapeAll(lEdges, geompy.ShapeType["EDGE"])
@@ -392,8 +396,8 @@ for ledge in list_edges_dom:
 geompy.UnionList(g_edge_dom, edge_dom)
 
 # Récuperation des zones de raffinement parc raff4
-edges_x_raff4 = []
-edges_y_raff4 = []
+edges_x_raff4: List = []
+edges_y_raff4: List = []
 lListEdges = geompy.Propagate(Union_raff4)
 for lEdges in lListEdges:
     edges = geompy.SubShapeAll(lEdges, geompy.ShapeType["EDGE"])
@@ -416,8 +420,8 @@ geompy.UnionList(alongx_raff4, edges_x_raff4)
 geompy.UnionList(alongy_raff4, edges_y_raff4)
 
 # Récuperation des zones de raffinement parc raff5
-edges_x_raff5 = []
-edges_y_raff5 = []
+edges_x_raff5: List = []
+edges_y_raff5: List = []
 lListEdges = geompy.Propagate(Union_raff5)
 for lEdges in lListEdges:
     edges = geompy.SubShapeAll(lEdges, geompy.ShapeType["EDGE"])
@@ -440,8 +444,8 @@ geompy.UnionList(alongx_raff5, edges_x_raff5)
 geompy.UnionList(alongy_raff5, edges_y_raff5)
 
 # Récuperation des zones de raffinement parc raff6
-edges_x_raff6 = []
-edges_y_raff6 = []
+edges_x_raff6: List = []
+edges_y_raff6: List = []
 lListEdges = geompy.Propagate(Union_raff6)
 for lEdges in lListEdges:
     edges = geompy.SubShapeAll(lEdges, geompy.ShapeType["EDGE"])
@@ -464,8 +468,8 @@ geompy.UnionList(alongx_raff6, edges_x_raff6)
 geompy.UnionList(alongy_raff6, edges_y_raff6)
 
 # Récuperation des zones de raffinement parc raff7
-edges_x_raff7 = []
-edges_y_raff7 = []
+edges_x_raff7: List = []
+edges_y_raff7: List = []
 lListEdges = geompy.Propagate(Union_raff7)
 for lEdges in lListEdges:
     edges = geompy.SubShapeAll(lEdges, geompy.ShapeType["EDGE"])
@@ -548,7 +552,8 @@ ppts = np.array(ppts)
 ### SMESH component
 ###
 
-import SMESH, SALOMEDS
+import SALOMEDS
+import SMESH
 from salome.smesh import smeshBuilder
 
 smesh = smeshBuilder.New()

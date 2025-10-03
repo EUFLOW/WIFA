@@ -19,5 +19,3 @@ Depending on the input parameters and modeling choices, a transport equation for
 with :math:`\sigma=0.7` the thermal Schmidt number.
 
 More details about the theoretical framework and numerical methods can be found in `code_saturne's online documentation <https://www.code-saturne.org/cms/web/documentation/v80/>`_.
-
-

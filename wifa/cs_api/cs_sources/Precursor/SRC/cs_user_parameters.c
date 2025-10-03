@@ -165,7 +165,7 @@ cs_user_parameters(cs_domain_t *domain)
     cs_velocity_pressure_param_t *vp_param = cs_get_glob_velocity_pressure_param();
     vp_param->igpust=0;
 
-    cs_time_step_t *ts = cs_get_glob_time_step();    
+    cs_time_step_t *ts = cs_get_glob_time_step();
     ts->nt_max = cs_notebook_parameter_value_by_name("precntmax");
 
     /* Warning, meteo file does not overwrite reference values... */

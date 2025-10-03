@@ -1,8 +1,10 @@
-from wifa.cs_api.cs_modules.csLaunch.cs_run_function import run_code_saturne
-from windIO.utils.yml_utils import validate_yaml
-from pathlib import Path
-from windIO import __path__ as wiop
 import os
+from pathlib import Path
+
+from windIO import __path__ as wiop
+from windIO.utils.yml_utils import validate_yaml
+
+from wifa.cs_api.cs_modules.csLaunch.cs_run_function import run_code_saturne
 
 test_path = Path(os.path.dirname(__file__))
 windIO_path = Path(wiop[0])
@@ -54,7 +56,6 @@ def test_cs_profiles():
 if __name__ == "__main__":
     test_cs_KUL()
     test_cs_4wts()
-    test_cs_4wts2()
     test_cs_abl()
     test_cs_abl_stable()
     test_cs_profiles()

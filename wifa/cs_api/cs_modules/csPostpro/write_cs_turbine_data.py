@@ -1,9 +1,11 @@
-from netCDF4 import Dataset
+import os
 import sys
 from os import path, sep
-import numpy as np
-import wifa.cs_api.cs_modules.csPostpro.cs_postprocess_utils as cs_pp
 
+import numpy as np
+from netCDF4 import Dataset
+
+import wifa.cs_api.cs_modules.csPostpro.cs_postprocess_utils as cs_pp
 
 postpro_dir = sys.argv[1]
 turbine_file_name = sys.argv[2]
@@ -13,7 +15,7 @@ case_dir = sys.argv[5]
 ntmax_str = sys.argv[6]
 
 if not path.exists(postpro_dir):
-    sys.mkdir(postpro_dir)
+    os.mkdir(postpro_dir)
 
 postprocess_cases_file = open(postpro_dir + "/postprocessing_cases.csv", "r")
 

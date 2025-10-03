@@ -102,9 +102,9 @@ def define_domain_parameters(domain):
     if domain.kw_args:
         options = process_command_line(domain.kw_args)
 
+        from code_saturne.model.AtmosphericFlowsModel import AtmosphericFlowsModel
         from code_saturne.model.XMLengine import Case
         from code_saturne.model.XMLinitialize import XMLinit
-        from code_saturne.model.AtmosphericFlowsModel import AtmosphericFlowsModel
 
         fp = os.path.join(domain.exec_dir, "setup.xml")
         case = Case(package=domain.package, file_name=fp)
