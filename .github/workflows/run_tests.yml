@@ -31,7 +31,6 @@ jobs:
         apt-get update && apt-get install -y git-lfs
         git lfs install
         pip install --upgrade pip
-        pip install git+https://gitlab.windenergy.dtu.dk/TOPFARM/PyWake.git@v2.6.5
         pip install -e .[test]
     - name: Test with pytest
       run: |
