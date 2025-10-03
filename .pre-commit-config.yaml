@@ -1,0 +1,47 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  - repo: local
+    hooks:
+      - id: check-custom-yaml
+        name: Check YAML with custom tags
+        entry: python .github/scripts/load_yaml_with_windio.py
+        language: python
+        additional_dependencies: [windIO]
+        types: [yaml]
+
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        language_version: python3
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  #- repo: https://github.com/pycqa/flake8
+  #  rev: 6.0.0
+  #  hooks:
+  #    - id: flake8
+  #      additional_dependencies: [flake8-docstrings]
+  #      args: [
+  #        "--max-line-length=88",  # Match black's default
+  #        "--extend-ignore=E203,W503"  # Black compatibility
+  #        #"--extend-ignore=E203,W503,D100,D101,D102,D103,D104"  # Also ignore docstring issues for now
+  #      ]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.3.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests, types-PyYAML]
