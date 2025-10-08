@@ -31,7 +31,7 @@ def validate_system_yaml(
 
 def test_example_simulation_outputs():
 
-    file_path = Path('examples/cases/KUL_LES/outputs/outputs.yaml')
+    file_path = Path('examples/cases/KUL_LES/observed_output/simulation_outputs.yaml')
     data_to_validate = load_yaml(file_path)
     validate_yaml(data_to_validate, 'plant/simulation_outputs')
     
