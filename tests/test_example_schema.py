@@ -29,6 +29,12 @@ def validate_system_yaml(
     validate_yaml(system_yaml, schema_path)
 
 
+def test_example_simulation_outputs():
+
+    file_path = Path('examples/cases/KUL_LES/outputs/outputs.yaml')
+    data_to_validate = load_yaml(file_path)
+    validate_yaml(data_to_validate, 'plant/simulation_outputs')
+    
 def test_example_scada():
 
     file_path = Path('examples/cases/open_source_scada/outputs/outputs.yaml')
