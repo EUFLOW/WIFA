@@ -1,0 +1,5 @@
+# Reference to the wind energy system definition
+wind_energy_system: !include ../wind_energy_system/system.yaml
+
+# Turbine data from SCADA observations
+turbine_data: !include observedPowerKUL.nc
