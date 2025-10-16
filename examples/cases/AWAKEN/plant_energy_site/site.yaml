@@ -1,6 +1,6 @@
 name: FLOW UQ vnv study on toy problem, 4 WT Wind Farm
 boundaries:
-    polygons: 
+    polygons:
       -  x: [621428.04, 647045.65, 621428.04, 647045.65]
          y: [4032612.25, 4032612.25, 4010840.04, 4010840.04,]
 energy_resource: !include ../plant_energy_resource/resource.yaml

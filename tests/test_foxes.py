@@ -1,10 +1,11 @@
-from wifa.foxes_api import run_foxes
+import os
 from pathlib import Path
+
+from foxes import Engine, reset_engine
 from windIO import __path__ as wiop
 from windIO import validate as validate_yaml
-from foxes import Engine, reset_engine
-import os
 
+from wifa.foxes_api import run_foxes
 
 test_path = Path(os.path.dirname(__file__))
 windIO_path = Path(wiop[0])
@@ -34,23 +35,28 @@ def _run_foxes(wes_dir):
                 engine = None
                 raise e
 
+
 def test_foxes_KUL():
     wes_dir = test_path / "../examples/cases/KUL_LES/wind_energy_system/"
     _run_foxes(wes_dir)
+
 
 def test_foxes_4wts():
     wes_dir = test_path / "../examples/cases/windio_4turbines/wind_energy_system/"
     _run_foxes(wes_dir)
 
+
 def test_foxes_abl():
     wes_dir = test_path / "../examples/cases/windio_4turbines_ABL/wind_energy_system/"
     _run_foxes(wes_dir)
+
 
 def test_foxes_abl_stable():
     wes_dir = (
         test_path / "../examples/cases/windio_4turbines_ABL_stable/wind_energy_system/"
     )
     _run_foxes(wes_dir)
+
 
 def test_foxes_profiles():
     wes_dir = (
@@ -59,11 +65,14 @@ def test_foxes_profiles():
     )
     _run_foxes(wes_dir)
 
+
 def test_foxes_heterogeneous_wind_rose_at_turbines():
     wes_dir = (
-        test_path / "../examples/cases/heterogeneous_wind_rose_at_turbines/wind_energy_system/"
+        test_path
+        / "../examples/cases/heterogeneous_wind_rose_at_turbines/wind_energy_system/"
     )
     _run_foxes(wes_dir)
+
 
 def test_foxes_heterogeneous_wind_rose_map():
     wes_dir = (
@@ -71,17 +80,19 @@ def test_foxes_heterogeneous_wind_rose_map():
     )
     _run_foxes(wes_dir)
 
+
 def test_foxes_simple_wind_rose():
-    wes_dir = (
-        test_path / "../examples/cases/simple_wind_rose/wind_energy_system/"
-    )
+    wes_dir = test_path / "../examples/cases/simple_wind_rose/wind_energy_system/"
     _run_foxes(wes_dir)
+
 
 def test_foxes_timeseries_with_operating_flag():
     wes_dir = (
-        test_path / "../examples/cases/timeseries_with_operating_flag/wind_energy_system/"
+        test_path
+        / "../examples/cases/timeseries_with_operating_flag/wind_energy_system/"
     )
     _run_foxes(wes_dir)
+
 
 if __name__ == "__main__":
     test_foxes_KUL()

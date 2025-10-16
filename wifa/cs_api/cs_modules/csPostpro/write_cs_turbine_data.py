@@ -1,9 +1,10 @@
-from netCDF4 import Dataset
 import sys
-from os import path, sep
-import numpy as np
-import wifa.cs_api.cs_modules.csPostpro.cs_postprocess_utils as cs_pp
+from os import mkdir, path, sep
 
+import numpy as np
+from netCDF4 import Dataset
+
+import wifa.cs_api.cs_modules.csPostpro.cs_postprocess_utils as cs_pp
 
 postpro_dir = sys.argv[1]
 turbine_file_name = sys.argv[2]
@@ -13,7 +14,7 @@ case_dir = sys.argv[5]
 ntmax_str = sys.argv[6]
 
 if not path.exists(postpro_dir):
-    sys.mkdir(postpro_dir)
+    mkdir(postpro_dir)
 
 postprocess_cases_file = open(postpro_dir + "/postprocessing_cases.csv", "r")
 
@@ -62,17 +63,15 @@ thrust_file = rootgrp.createVariable(
 turbines_file = rootgrp.createVariable(
     "turbine",
     "f8",
-    ("turbine",
-    ),
+    ("turbine",),
 )
 time_file = rootgrp.createVariable(
     "time",
     "f8",
-    ( "time",
-    ),
+    ("time",),
 )
-turbines_file[:]=np.arange(turbine_number)
-time_file[:]=cases
+turbines_file[:] = np.arange(turbine_number)
+time_file[:] = cases
 for j, casei in enumerate(cases):
     print(str(j) + "/" + str(len(cases)), end="\r")
     # TODO: string formatting for id "%05d"
@@ -112,7 +111,9 @@ for j, casei in enumerate(cases):
         total_power.append(float(first_line.split(" ")[-1]))
         second_line = file.readlines()[0]
         var_name = second_line.replace(" ", "").replace("\n", "").split(",")
-    power_file_table = np.atleast_2d(np.genfromtxt(power_file, delimiter=",", skip_header=2))
+    power_file_table = np.atleast_2d(
+        np.genfromtxt(power_file, delimiter=",", skip_header=2)
+    )
     x_coords.append(
         power_file_table[:, var_name.index("xhub")]
         - np.mean(power_file_table[:, var_name.index("xhub")])
