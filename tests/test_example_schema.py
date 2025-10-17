@@ -17,6 +17,7 @@ def base_path():
 def schema_path():
     return Path("plant/wind_energy_system")
 
+
 @pytest.fixture
 def windio_path():
     return Path(wiop[0])
@@ -32,18 +33,16 @@ def validate_system_yaml(
 
 
 def test_example_simulation_outputs():
-
-    file_path = Path('examples/cases/KUL_LES/observed_output/simulation_outputs.yaml')
+    file_path = Path("examples/cases/KUL_LES/observed_output/simulation_outputs.yaml")
     data_to_validate = load_yaml(file_path)
-    validate_yaml(data_to_validate, 'plant/simulation_outputs')
-    
+    validate_yaml(data_to_validate, "plant/simulation_outputs")
+
+
 def test_example_scada():
-
-    file_path = Path('examples/cases/open_source_scada/outputs/outputs.yaml')
+    file_path = Path("examples/cases/open_source_scada/outputs/outputs.yaml")
     data_to_validate = load_yaml(file_path)
-    validate_yaml(data_to_validate, 'plant/scada_data')
-    
-    
+    validate_yaml(data_to_validate, "plant/scada_data")
+
 
 # Test cases
 def test_awaken_schema(base_path, windio_path, schema_path):
