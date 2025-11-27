@@ -34,17 +34,18 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Development Status :: 3 - Alpha",
 ]
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.9,<3.14"
 dependencies = [
     "py_wake>=2.6.5",
     "foxes>=1.6.2",
     "windIO @ git+https://github.com/EUFlow/windIO.git",
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
-    #"numpy<2",
     "xarray>=2022.0.0",
     "mpmath",
 ]
