@@ -45,7 +45,7 @@ dependencies = [
     "windIO @ git+https://github.com/EUFlow/windIO.git",
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
     #"numpy<2",
-    "xarray>=2022.0.0,<2025",
+    "xarray>=2022.0.0",
     "mpmath",
 ]
 
