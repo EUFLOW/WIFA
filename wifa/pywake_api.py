@@ -847,18 +847,24 @@ def run_pywake(yamlFile, output_dir="output"):
     # noj = NOJ(site, turbine, turbulenceModel=None)
     #    sim_res = noj(x, y)
     # sim_res = windFarmModel(x, y, type=turbine_types, time=timeseries, ws=ws, wd=wd, TI=0, yaw=0, tilt=0)
-    sim_res = windFarmModel(
-        x,
-        y,
-        type=turbine_types,
-        time=timeseries,
-        ws=ws,
-        wd=wd,
-        # TI=TI, # TI is defined in XRSite
-        yaw=0,
-        tilt=0,
-        operating=operating,
-    )
+    sim_kwargs = {
+        "x": x,
+        "y": y,
+        "type": turbine_types,
+        "time": timeseries,
+        "ws": ws,
+        "wd": wd,
+        "yaw": 0,
+        "tilt": 0,
+        "operating": operating,
+    }
+
+    # Check if TI is missing from the site's data variables
+    # If it's missing (common in Hornsrev1Site), pass the local TI variable
+    if "TI" not in site.ds.data_vars:
+        sim_kwargs["TI"] = TI
+
+    sim_res = windFarmModel(**sim_kwargs)
     aep = sim_res.aep(normalize_probabilities=not timeseries).sum()
     print("aep is ", aep, "GWh")
     # print('aep is ', sim_res.aep().sum(), 'GWh')
