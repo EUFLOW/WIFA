@@ -136,19 +136,36 @@ def run_pywake(yamlFile, output_dir="output"):
 
     def dict_to_site(resource_dict):
         resource_ds = dict_to_netcdf(resource_dict)
-        to_rename = {
+        rename_map = {
             "height": "h",
-            "wind_direction": "wd",
-            "wind_speed": "ws",
             "weibull_a": "Weibull_A",
             "weibull_k": "Weibull_k",
             "sector_probability": "Sector_frequency",
             "turbulence_intensity": "TI",
             "wind_turbine": "i",
         }
-        for name in to_rename:
+
+        # Smart rename for wind_direction and wind_speed
+        for key, coord_name, var_name in [
+            ("wind_direction", "wd", "WD"),
+            ("wind_speed", "ws", "WS"),
+        ]:
+            if key in resource_ds:
+                # If it's a coordinate (dimension), use lowercase (wd, ws)
+                # If it's a data variable (time series/map), use uppercase (WD, WS)
+                rename_map[key] = coord_name if key in resource_ds.coords else var_name
+
+        for name in rename_map:
             if name in resource_ds:
-                resource_ds = resource_ds.rename({name: to_rename[name]})
+                resource_ds = resource_ds.rename({name: rename_map[name]})
+
+        if "P" not in resource_ds and "time" in resource_ds.dims:
+            n_time = len(resource_ds.time)
+            # Create uniform probability array (1/N)
+            resource_ds["P"] = (("time",), np.ones(n_time) / n_time)
+        if "i" in resource_ds.dims:
+            other_dims = [d for d in resource_ds.dims if d != "i"]
+            resource_ds = resource_ds.transpose("i", *other_dims)
         print("making site with ", resource_ds)
         return XRSite(resource_ds)
 
@@ -369,10 +386,40 @@ def run_pywake(yamlFile, output_dir="output"):
             heights = resource_dat["wind_resource"]["height"]
         else:
             heights = None
-        ws = np.array(resource_dat["wind_resource"]["wind_speed"]["data"])[cases_idx]
-        wd = np.array(resource_dat["wind_resource"]["wind_direction"]["data"])[
-            cases_idx
-        ]
+
+        # Helper to get data and dimensions safely
+        def get_resource_data(var_name):
+            data_obj = resource_dat["wind_resource"][var_name]
+            # Handle windIO schema structure (data + dims)
+            vals = np.array(data_obj["data"])
+            # Default to ["time"] if dims missing but data exists
+            dims = data_obj.get("dims", ["time"])
+            return vals, dims
+
+        # Extract Raw Data
+        ws_vals, ws_dims = get_resource_data("wind_speed")
+        wd_vals, wd_dims = get_resource_data("wind_direction")
+
+        # Apply subsetting (cases_idx)
+        # Assuming 'time' is always the first dimension
+        ws_vals = ws_vals[cases_idx]
+        wd_vals = wd_vals[cases_idx]
+
+        # PREPARE REFERENCE ARRAYS FOR SIMULATION CALL
+        # If data is turbine specific (2D: time x turbine), flatten to 1D (time)
+        if "wind_turbine" in ws_dims:
+            ws = np.mean(ws_vals, axis=1)
+        else:
+            ws = ws_vals
+
+        if "wind_turbine" in wd_dims:
+            # Vector mean for direction to handle 360/0 boundary
+            rads = np.deg2rad(wd_vals)
+            mean_sin = np.mean(np.sin(rads), axis=1)
+            mean_cos = np.mean(np.cos(rads), axis=1)
+            wd = np.mod(np.rad2deg(np.arctan2(mean_sin, mean_cos)), 360)
+        else:
+            wd = wd_vals
 
         if "operating" in resource_dat["wind_resource"].keys():
             operating = np.array(resource_dat["wind_resource"]["operating"]["data"])[
@@ -440,7 +487,13 @@ def run_pywake(yamlFile, output_dir="output"):
                     )(hh)
             assert len(np.array(times)[cases_idx]) == len(ws)
             assert len(wd) == len(ws)
-            site = Hornsrev1Site()
+            if "wind_turbine" in ws_dims or "wind_turbine" in wd_dims:
+                # Turbine-specific data -> Use XRSite via dict_to_site
+                site = dict_to_site(resource_dat["wind_resource"])
+            else:
+                # Uniform data -> Use Hornsrev1Site (Old behavior)
+                # This preserves behavior for KUL and 4wts tests which use uniform inflow
+                site = Hornsrev1Site()
         if "turbulence_intensity" not in resource_dat["wind_resource"]:
             TI = 0.02
         else:
@@ -798,7 +851,7 @@ def run_pywake(yamlFile, output_dir="output"):
         time=timeseries,
         ws=ws,
         wd=wd,
-        TI=TI,
+        # TI=TI, # TI is defined in XRSite
         yaw=0,
         tilt=0,
         operating=operating,
