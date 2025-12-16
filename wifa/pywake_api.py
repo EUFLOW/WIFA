@@ -165,6 +165,9 @@ def run_pywake(yamlFile, output_dir="output"):
             resource_ds["P"] = (("time",), np.ones(n_time) / n_time)
         if "i" in resource_ds.dims:
             other_dims = [d for d in resource_ds.dims if d != "i"]
+            # The transpose operation ensures that 'i' (turbine index) is the first dimension.
+            # This is required for XRSite's linear interpolation, which expects the turbine index
+            # as the leading dimension. See test at line 392 for details.
             resource_ds = resource_ds.transpose("i", *other_dims)
         print("making site with ", resource_ds)
         return XRSite(resource_ds)
