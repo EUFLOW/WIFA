@@ -1,5 +1,5 @@
 from windIO import load_yaml
-from typing import Dict, Any, List
+from typing import Dict, List
 import numpy as np
 import windIO
 from pathlib import Path
@@ -9,6 +9,26 @@ if TYPE_CHECKING:
     from floris import FlorisModel
 
 def run_floris(yaml_input):
+    """
+    Run FLORIS model based on windIO YAML input and extract specified outputs.
+    
+    Parameters
+    ----------
+    yaml_input: str, Path, or dict
+        Path to the windIO YAML input file or a dictionary representing the input data.
+        
+    Notes
+    -----
+    WindIO is not yet suppoeted by FLOIS main branch. 
+    Currently refer to https://github.com/lejeunemax/floris/tree/windIO.
+    
+    Some features may not be fully supported, these include:
+    - Subsetting of wind conditions (times_run, wind_speeds_run, directions_run)
+    - Only "power", "thrust_coefficient", "axial_induction", and "turbulence_intensity"
+      are currently supported as turbine output variables.
+    - Some advanced windIO properties may not be fully supported. These include:
+      blockage_model, rotor_averaging, and axial_induction_model.
+    """
 
     from floris import FlorisModel
     from floris.read_windio import TrackedDict
@@ -57,15 +77,14 @@ def run_floris(yaml_input):
                 )
         
         output_dir = out_specs.get("output_folder", ".")
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         if ("turbine_outputs" in out_specs):
             _read_turbines(fmodel, output_dir, out_specs, slice_selection)
 
         if ("flow_field" in out_specs):
             _read_fields(fmodel, output_dir, out_specs, slice_selection)
-        
-        pass
-        
+
 def _read_turbines(fmodel: "FlorisModel", output_dir, out_specs, slice_selection):
     """
     Extract turbine output data from FLORIS model and write to NetCDF file.
