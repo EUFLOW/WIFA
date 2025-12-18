@@ -11,6 +11,7 @@ from py_wake.rotor_avg_models import RotorCenter
 from py_wake.site import XRSite
 from py_wake.superposition_models import LinearSum
 from py_wake.tests import npt
+from py_wake.turbulence_models import CrespoHernandez
 from py_wake.wind_turbines import WindTurbine
 from py_wake.wind_turbines.power_ct_functions import PowerCtFunctionList, PowerCtTabular
 from scipy.special import gamma
@@ -337,6 +338,107 @@ def test_heterogeneous_wind_rose_arbitrary_points():
     )
 
     assert wifa_res == res_aep
+
+
+def test_turbine_specific_speeds_timeseries():
+    """
+    Test case for time-series simulation where inflow wind speed/direction
+    is specific to each turbine (dimensions: time x turbine).
+    Validates that the API correctly reduces 2D inputs to 1D reference arrays
+    for the simulation call while preserving local site data.
+    """
+    from windIO import load_yaml  # Import helper to read YAML
+
+    case_name = "turbine_specific_speeds_timeseries"
+    system_yaml = (
+        test_path / f"../examples/cases/{case_name}/wind_energy_system/system.yaml"
+    )
+    resource_nc = (
+        test_path
+        / f"../examples/cases/{case_name}/plant_energy_resource/Stochastic_atHubHeight.nc"
+    )
+
+    # 1. Run via API
+    wifa_res = run_pywake(system_yaml)
+
+    # 2. Run manually to verify logic
+
+    # Load coordinates from YAML
+    sys_dat = load_yaml(system_yaml)
+    farm_layout = sys_dat["wind_farm"]["layouts"]
+    if isinstance(farm_layout, list):
+        coords = farm_layout[0]["coordinates"]
+    else:
+        coords = farm_layout["coordinates"]
+    x = coords["x"]
+    y = coords["y"]
+
+    # Load and prepare Site Data
+    ds = xr.open_dataset(resource_nc)
+    ds = ds.rename(
+        {
+            "wind_direction": "WD",
+            "wind_speed": "WS",
+            "wind_turbine": "i",
+            "turbulence_intensity": "TI",
+        }
+    )
+
+    # FIX 1: Re-index 'i' to be 0-based to match PyWake's internal numbering
+    # The file has [1, 2, 3, 4], PyWake expects [0, 1, 2, 3]
+    ds = ds.assign_coords(i=np.arange(len(ds.i)))
+
+    # FIX 2: Transpose to (i, time) for XRSite linear interpolator
+    ds = ds.transpose("i", "time")
+
+    # FIX 3: Add uniform probability 'P'
+    n_time = len(ds.time)
+    ds["P"] = (("time"), np.ones(n_time) / n_time)
+
+    # Initialize Site
+    site = XRSite(ds, interp_method="linear")
+
+    # Define Turbine
+    turbine = WindTurbine(
+        name="test",
+        diameter=178.3,
+        hub_height=119.0,
+        powerCtFunction=POWER_CT_TABLE,
+    )
+
+    # Define Wake Model
+    wfm = BastankhahGaussian(
+        site,
+        turbine,
+        k=0.04,
+        ceps=0.2,
+        superpositionModel=LinearSum(),
+        use_effective_ws=True,
+        turbulenceModel=CrespoHernandez(),
+    )
+
+    # Calculate reference arrays (API Logic)
+    if "i" in ds.WS.dims:
+        ws_ref = ds.WS.mean(dim="i").values
+    else:
+        ws_ref = ds.WS.values
+
+    if "i" in ds.WD.dims:
+        rads = np.deg2rad(ds.WD)
+        mean_sin = np.sin(rads).mean(dim="i")
+        mean_cos = np.cos(rads).mean(dim="i")
+        wd_ref = np.rad2deg(np.arctan2(mean_sin, mean_cos)) % 360
+        wd_ref = wd_ref.values
+    else:
+        wd_ref = ds.WD.values
+
+    # Manual Simulation
+    res_manual = wfm(x, y, time=ds.time, ws=ws_ref, wd=wd_ref)
+
+    manual_aep = res_manual.aep(normalize_probabilities=False).sum()
+
+    # 3. Assert match
+    npt.assert_allclose(wifa_res, manual_aep, rtol=1e-6)
 
 
 # if __name__ == "__main__":
