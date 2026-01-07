@@ -247,6 +247,7 @@ def _read_turbines(fmodel: "FlorisModel", output_dir, out_specs, slice_selection
     
     # Write to NetCDF
     ds.to_netcdf(f"{output_dir}/{turbine_nc_filename}")
+    print(f"Turbine output data written to {output_dir}/{turbine_nc_filename}")
     
     return ds
     
@@ -424,5 +425,6 @@ def _read_fields(fmodel: "FlorisModel", output_dir, out_specs, slice_selection):
     
     # Write to NetCDF
     ds.to_netcdf(f"{output_dir}/{flow_nc_filename}")
+    print(f"Flow field data written to {output_dir}/{flow_nc_filename}")
     
     return ds
