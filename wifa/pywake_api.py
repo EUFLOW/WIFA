@@ -93,7 +93,7 @@ def weighted_quantile(
         weighted_quantiles -= weighted_quantiles[0]
         weighted_quantiles /= weighted_quantiles[-1]
     else:
-        weighted_quantiles /= np.suyamlFilem(sample_weight)
+        weighted_quantiles /= np.sum(sample_weight)
     return np.interp(quantiles, weighted_quantiles, values)
 
 
@@ -763,8 +763,6 @@ def run_pywake(yamlFile, output_dir="output"):
         deflectionModel = JimenezWakeDeflection(
             beta=deflection_model_data["beta"]
         )  # Assuming Jimenez takes 'beta' as an argument
-    elif deflection_model_data["name"] == "None":
-        deflectionModel = None
     else:
         raise Exception(
             "%s deflection model not implemented" % deflection_model_data["name"]
