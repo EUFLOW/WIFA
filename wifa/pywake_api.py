@@ -4,9 +4,7 @@ import warnings
 from collections import OrderedDict
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import xarray as xr
 import yaml
 from scipy.interpolate import interp1d
@@ -78,9 +76,9 @@ def weighted_quantile(
     if sample_weight is None:
         sample_weight = np.ones(len(values))
     sample_weight = np.array(sample_weight)
-    assert np.all(quantiles >= 0) and np.all(
-        quantiles <= 1
-    ), "quantiles should be in [0, 1]"
+    assert np.all(quantiles >= 0) and np.all(quantiles <= 1), (
+        "quantiles should be in [0, 1]"
+    )
 
     if not values_sorted:
         sorter = np.argsort(values)
@@ -98,7 +96,6 @@ def weighted_quantile(
 
 
 def run_pywake(yamlFile, output_dir="output"):
-    from py_wake import NOJ, BastankhahGaussian, HorizontalGrid
     from py_wake.deficit_models import SelfSimilarityDeficit2020
     from py_wake.deficit_models.fuga import FugaDeficit
     from py_wake.deficit_models.gaussian import (
@@ -109,16 +106,7 @@ def run_pywake(yamlFile, output_dir="output"):
     from py_wake.deficit_models.noj import NOJLocalDeficit
     from py_wake.deflection_models import JimenezWakeDeflection
     from py_wake.examples.data.hornsrev1 import Hornsrev1Site
-    from py_wake.rotor_avg_models import (
-        CGIRotorAvg,
-        EqGridRotorAvg,
-        GaussianOverlapAvgModel,
-        GQGridRotorAvg,
-        GridRotorAvg,
-        PolarGridRotorAvg,
-        RotorCenter,
-        polar_gauss_quadrature,
-    )
+    from py_wake.rotor_avg_models import GridRotorAvg, RotorCenter
     from py_wake.site import XRSite
     from py_wake.superposition_models import LinearSum, SquaredSum
     from py_wake.turbulence_models import (
@@ -130,7 +118,6 @@ def run_pywake(yamlFile, output_dir="output"):
     from py_wake.wind_turbines import WindTurbine, WindTurbines
     from py_wake.wind_turbines.power_ct_functions import (
         PowerCtFunctionList,
-        PowerCtFunctions,
         PowerCtTabular,
     )
 
@@ -262,19 +249,6 @@ def run_pywake(yamlFile, output_dir="output"):
         turbine = WindTurbines.from_WindTurbine_lst(turbines)
         turbine_types = farm_dat["layouts"][0]["turbine_types"]
 
-    # farm = 'examples/plant/plant_wind_farm/IEA37_case_study_3_wind_farm.yaml'
-    # with open(farm, "r") as stream:
-    #    try:
-    #        farm_dat = yaml.safe_load(stream)
-    #    except yaml.YAMLError as exc:
-    #        print(exc)
-
-    # resource = 'examples/plant/plant_energy_resource/IEA37_case_study_4_energy_resource.yaml'
-    # with open(resource, "r") as stream:
-    #    try:
-    #        resource_dat = yaml.safe_load(stream)
-    #    except yaml.YAMLError as exc:
-    #        print(exc)
     resource_dat = system_dat["site"]["energy_resource"]
     WFXLB = np.min(system_dat["site"]["boundaries"]["polygons"][0]["x"])
     WFXUB = np.max(system_dat["site"]["boundaries"]["polygons"][0]["x"])
@@ -555,12 +529,6 @@ def run_pywake(yamlFile, output_dir="output"):
                 if heights:
                     TI = interp1d(heights, TI, axis=1)(hh)
 
-        # ite = XRSite(xr.Dataset(
-        # data_vars={'P': (('time'), np.ones(len(ws)) / len(speeds)), },
-        # coords={'time': range(len(times)),
-        #         'ws': speeds,
-        #         'wd': wd}))
-
     elif "weibull_k" in resource_dat["wind_resource"].keys():
         A = resource_dat["wind_resource"]["weibull_a"]
         k = resource_dat["wind_resource"]["weibull_k"]
@@ -622,11 +590,6 @@ def run_pywake(yamlFile, output_dir="output"):
         P = np.array(resource_dat["wind_resource"]["probability"]["data"])
         site = dict_to_site(resource_dat["wind_resource"])
         TI = resource_dat["wind_resource"]["turbulence_intensity"]["data"]
-
-    # if 'name' in system_dat['attributes']['analysis']['model_outputs_specification']:
-    #   output_dir = system_dat['attributes']['analysis']['model_outputs_specification']['name']
-    #   if not os.path.exists(output_dir):
-    #      os.makedirs(output_dir)
 
     wind_deficit_model_data = get_with_default(
         system_dat["attributes"]["analysis"], "wind_deficit_model", DEFAULTS
@@ -763,8 +726,6 @@ def run_pywake(yamlFile, output_dir="output"):
         deflectionModel = JimenezWakeDeflection(
             beta=deflection_model_data["beta"]
         )  # Assuming Jimenez takes 'beta' as an argument
-    elif deflection_model_data["name"] == "None":
-        deflectionModel = None
     else:
         raise Exception(
             "%s deflection model not implemented" % deflection_model_data["name"]
@@ -867,8 +828,6 @@ def run_pywake(yamlFile, output_dir="output"):
     sim_res = windFarmModel(**sim_kwargs)
     aep = sim_res.aep(normalize_probabilities=not timeseries).sum()
     print("aep is ", aep, "GWh")
-    # print('aep is ', sim_res.aep().sum(), 'GWh')
-    # print('(%.2f capcacity factor)' % ( aep / (len(x) * turbine.power(10000) * 8760 / 1e9)))
 
     ######################
     # Construct Outputs
@@ -945,32 +904,8 @@ def run_pywake(yamlFile, output_dir="output"):
         ]
     )
 
-    # if 'AEP' in system_dat['attributes']['outputs']:
-    #   data['FLOW_simulation_outputs']['AEP'] = float(aep)
-
-    # if 'power_percentiles' in system_dat['attributes']['analysis']['outputs']:
-    # if system_dat['attributes']['analysis']['outputs']['power_percentiles']['report']:
-    #   # compute power percentiles
-    #   percentiles = np.array(system_dat['attributes']['analysis']['outputs']['power_percentiles']['percentiles']) / 100
-    #   if not timeseries:
-
-    #      # Flatten the power and P arrays
-    #      power_values = sim_res.Power.sum('wt').values.flatten()
-    #      probabilities = sim_res.P.values.flatten()
-
-    #      # Compute the weighted percentiles
-    #      power_percentiles = weighted_quantile(power_values, percentiles, sample_weight=probabilities)
-
-    #   else:
-    #       total_power = sim_res.Power.sum(dim='wt')
-    #       power_percentiles = total_power.quantile(percentiles, dim=['time']).to_numpy()
-    #   data['FLOW_simulation_outputs']['computed_percentiles'] = system_dat['attributes']['analysis']['outputs']['power_percentiles']['percentiles']
-    #   data['FLOW_simulation_outputs']['power_percentiles'] = power_percentiles
-
     os.makedirs(output_dir, exist_ok=True)
     if "turbine_outputs" in system_dat["attributes"]["model_outputs_specification"]:
-        # print('aep per turbine', list(aep_per_turbine)); hey
-        # data['FLOW_simulation_outputs']['AEP_per_turbine'] = [float(value) for value in aep_per_turbine]
         sim_res_formatted = sim_res[["Power", "WS_eff"]].rename(
             {"Power": "power", "WS_eff": "effective_wind_speed", "wt": "turbine"}
         )
@@ -991,27 +926,20 @@ def run_pywake(yamlFile, output_dir="output"):
         "flow_field" in system_dat["attributes"]["model_outputs_specification"]
         and not timeseries
     ):
-        # z_planes = system_dat['attributes']['model_outputs_specification']['flow_field']
-        # sorted(np.append(list(hub_heights.values()), additional_heights))
-        # if 'x_bounds' in  z_planes
-        # compute flow map for specified directions (wd) and speeds (ws)
         if timeseries:
             flow_map = sim_res.flow_box(
                 x=np.arange(WFXLB, WFXUB + WFDX, WFDX),
                 y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
                 h=additional_heights,
                 time=sim_res.time,
-                # operating=operating # TODO
             )
 
-            # remove unwanted data
             flow_map = flow_map.drop_vars(["WD", "WS", "TI", "P"])
         else:
             flow_map = sim_res.flow_box(
                 x=np.arange(WFXLB, WFXUB + WFDX, WFDX),
                 y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
-                h=list(hub_heights.values())
-                # operating=operating # TODO
+                h=list(hub_heights.values()),
             )
 
         # raise warning if user requests data we can not provide
@@ -1023,32 +951,10 @@ def run_pywake(yamlFile, output_dir="output"):
         ):
             warnings.warn("PyWake can only output velocity_u and turbulence_intensity")
 
-        # remove TI or WS if they are not requested
-        if (
-            "turbulence_intensity"
-            not in system_dat["attributes"]["model_outputs_specification"][
-                "flow_field"
-            ]["output_variables"]
-        ):
-            # flow_map = flow_map.drop_vars(["TI_eff"])
-            pass
-        if (
-            "velocity_u"
-            not in system_dat["attributes"]["model_outputs_specification"][
-                "flow_field"
-            ]["output_variables"]
-        ):
-            pass
-            # flow_map = flow_map.drop_vars(["WS_eff"])
-
     elif (
         "flow_field" in system_dat["attributes"]["model_outputs_specification"]
         and timeseries
     ):
-        # time_to_plot = system_dat['attributes']['outputs']['flow_field']['time'][0]
-        # print('TIMES ', time_to_plot)
-        # print(system_dat['attributes']['model_outputs_specification']['flow_field']['z_planes']['z_list'])
-        # print("Flow box bounds: ", WFXLB, WFXUB, WFYLB, WFYUB)
         if (
             system_dat["attributes"]["model_outputs_specification"]["flow_field"][
                 "report"
@@ -1067,29 +973,15 @@ def run_pywake(yamlFile, output_dir="output"):
                 y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
                 h=additional_heights,
                 time=sim_res.time.values,
-                # operating=operating,
             )
-        # flow_map = sim_res.flow_map(HorizontalGrid(x = np.linspace(WFXLB, WFXUB, 100),
-    # y = np.linspace(WFYLB, WFYUB, 100)))
-    # wd=wd,
-    # ws=ws)
-    # power table
-    # if 'power_table' in system_dat['attributes']['analysis']['outputs']:
-    #   # todo: more in depth stuff here, include loads
-    #   #data['FLOW_simulation_outputs']['power_output_variables'] = tuple(system_dat['attributes']['analysis']['outputs']['flow_field']['output_variables'])
-    #
+
     if flow_map:
-        # save data
-        flow_map = (
-            flow_map[["WS_eff", "TI_eff"]]
-            # .drop(["wd", "ws"])
-            .rename(
-                {
-                    "h": "z",
-                    "WS_eff": "wind_speed",
-                    "TI_eff": "turbulence_intensity",
-                }
-            )
+        flow_map = flow_map[["WS_eff", "TI_eff"]].rename(
+            {
+                "h": "z",
+                "WS_eff": "wind_speed",
+                "TI_eff": "turbulence_intensity",
+            }
         )
         flow_map.to_netcdf(output_dir + os.sep + "FarmFlow.nc")
 
@@ -1099,46 +991,7 @@ def run_pywake(yamlFile, output_dir="output"):
             "model_outputs_specification"
         ]["flow_field"]
 
-    # Write out the YAML data
-    output_yaml_nam = output_dir + os.sep + "output.yaml"
-    #    with open(output_yaml_nam, 'w') as file:
-    #        yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
-    #
-    #    with open(output_yaml_nam, 'r') as f:
-    #       yaml_content = f.read()
-    #
-    #    yaml_content = yaml_content.replace('INCLUDE_YAML_PLACEHOLDER', '!include recorded_inputs.yaml')
-    #
-    #    # Save the post-processed YAML
-    #    with open(output_yaml_nam, 'w') as f:
-    #       f.write(yaml_content)
-
-    ######################
-    # Construct Outputs
-    ####################
-    # Create a dictionary to represent the simplified YAML file structure
-    data = {
-        "wind_energy_system": "INCLUDE_YAML_PLACEHOLDER",
-        "power_table": "INCLUDE_POWER_TABLE_PLACEHOLDER",
-        "flow_field": "INCLUDE_FLOW_FIELD_PLACEHOLDER",
-    }
-
     # Write out the YAML data to the specified output directory
-    output_yaml_name = os.path.join(output_dir, "output.yaml")
-    with open(output_yaml_name, "w") as file:
-        yaml_content = yaml.dump(
-            data, file, default_flow_style=False, allow_unicode=True
-        )
-
-    # Replace placeholders with actual include directives, ensuring no quotes are used
-    with open(output_yaml_name, "r") as file:
-        yaml_content = file.read()
-
-    # yaml_content = yaml_content.replace('INCLUDE_YAML_PLACEHOLDER', '!include recorded_inputs.yaml')
-    #
-    ## Save the post-processed YAML
-    # with open(output_yaml_nam, 'w') as f:
-    #   f.write(yaml_content)
     data = {
         "wind_energy_system": "INCLUDE_YAML_PLACEHOLDER",
         "power_table": "INCLUDE_POWER_TABLE_PLACEHOLDER",
