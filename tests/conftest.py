@@ -17,7 +17,10 @@ from foxes import Engine
 try:
     from foxes import reset_engine
 except ImportError:
-    from foxes.core import reset_engine
+    try:
+        from foxes.core import reset_engine
+    except ImportError:
+        from foxes.core.engine import reset_engine
 
 # Store test outcomes for conditional cleanup
 _test_outcomes = {}
