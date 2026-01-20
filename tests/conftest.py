@@ -11,7 +11,6 @@ import shutil
 from pathlib import Path
 
 import pytest
-from foxes import Engine
 
 # Handle different foxes versions - reset_engine location varies
 try:
@@ -126,17 +125,12 @@ def cleanup_output_dir(request):
 @pytest.fixture
 def foxes_engine():
     """
-    Provide a fresh FOXES engine instance per test.
+    Ensure FOXES engine state is reset after each test.
 
-    Properly initializes the engine before the test and resets it after,
-    ensuring no state leaks between tests.
+    Lets foxes use its default engine, then resets state after the test
+    to prevent leakage between tests.
     """
-    engine = Engine.new("default", verbosity=0)
-    # initialize() only exists in newer foxes versions
-    if hasattr(engine, "initialize"):
-        engine.initialize()
+    yield None
 
-    yield engine
-
-    # Always reset engine after test
+    # Reset engine state after test
     reset_engine()
