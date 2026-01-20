@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 from foxes import Engine, reset_engine
 
-
 # Store test outcomes for conditional cleanup
 _test_outcomes = {}
 
@@ -29,7 +28,9 @@ def pytest_runtest_makereport(item, call):
 
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)
