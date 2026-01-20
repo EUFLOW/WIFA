@@ -11,7 +11,13 @@ import shutil
 from pathlib import Path
 
 import pytest
-from foxes import Engine, reset_engine
+from foxes import Engine
+
+# Handle different foxes versions - reset_engine location varies
+try:
+    from foxes import reset_engine
+except ImportError:
+    from foxes.core import reset_engine
 
 # Store test outcomes for conditional cleanup
 _test_outcomes = {}
