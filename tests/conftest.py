@@ -20,7 +20,13 @@ except ImportError:
     try:
         from foxes.core import reset_engine
     except ImportError:
-        from foxes.core.engine import reset_engine
+        try:
+            from foxes.core.engine import reset_engine
+        except ImportError:
+            # Older foxes versions don't have reset_engine - use no-op
+            def reset_engine():
+                pass
+
 
 # Store test outcomes for conditional cleanup
 _test_outcomes = {}
