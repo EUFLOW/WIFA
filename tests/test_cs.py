@@ -16,9 +16,8 @@ def _run_cs(wes_dir, output_dir):
     for yaml_input in wes_dir.glob("system*"):
         print("\nRUNNING CODE_SATURNE ON", yaml_input, "\n")
         validate_yaml(yaml_input, Path("plant/wind_energy_system"))
-        # Create subdirectory for each yaml file within the fixture-provided output_dir
+        # Pass subdirectory path - run_code_saturne will create it
         sub_output_dir = output_dir / f"run_{i}"
-        sub_output_dir.mkdir(parents=True, exist_ok=True)
         run_code_saturne(
             yaml_input,
             test_mode=False,

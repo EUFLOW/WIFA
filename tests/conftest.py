@@ -132,7 +132,9 @@ def foxes_engine():
     ensuring no state leaks between tests.
     """
     engine = Engine.new("default", verbosity=0)
-    engine.initialize()
+    # initialize() only exists in newer foxes versions
+    if hasattr(engine, "initialize"):
+        engine.initialize()
 
     yield engine
 
