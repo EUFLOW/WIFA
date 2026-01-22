@@ -22,29 +22,29 @@ def _run_foxes(wes_dir, output_dir):
             run_foxes(yaml_input, output_dir=output_dir, engine=None)
 
 
-def test_foxes_KUL(foxes_engine, output_dir):
+def test_foxes_KUL(output_dir):
     wes_dir = test_path / "../examples/cases/KUL_LES/wind_energy_system/"
     _run_foxes(wes_dir, output_dir)
 
 
-def test_foxes_4wts(foxes_engine, output_dir):
+def test_foxes_4wts(output_dir):
     wes_dir = test_path / "../examples/cases/windio_4turbines/wind_energy_system/"
     _run_foxes(wes_dir, output_dir)
 
 
-def test_foxes_abl(foxes_engine, output_dir):
+def test_foxes_abl(output_dir):
     wes_dir = test_path / "../examples/cases/windio_4turbines_ABL/wind_energy_system/"
     _run_foxes(wes_dir, output_dir)
 
 
-def test_foxes_abl_stable(foxes_engine, output_dir):
+def test_foxes_abl_stable(output_dir):
     wes_dir = (
         test_path / "../examples/cases/windio_4turbines_ABL_stable/wind_energy_system/"
     )
     _run_foxes(wes_dir, output_dir)
 
 
-def test_foxes_profiles(foxes_engine, output_dir):
+def test_foxes_profiles(output_dir):
     wes_dir = (
         test_path
         / "../examples/cases/windio_4turbines_profiles_stable/wind_energy_system/"
@@ -52,7 +52,7 @@ def test_foxes_profiles(foxes_engine, output_dir):
     _run_foxes(wes_dir, output_dir)
 
 
-def test_foxes_heterogeneous_wind_rose_at_turbines(foxes_engine, output_dir):
+def test_foxes_heterogeneous_wind_rose_at_turbines(output_dir):
     wes_dir = (
         test_path
         / "../examples/cases/heterogeneous_wind_rose_at_turbines/wind_energy_system/"
@@ -60,19 +60,19 @@ def test_foxes_heterogeneous_wind_rose_at_turbines(foxes_engine, output_dir):
     _run_foxes(wes_dir, output_dir)
 
 
-def test_foxes_heterogeneous_wind_rose_map(foxes_engine, output_dir):
+def test_foxes_heterogeneous_wind_rose_map(output_dir):
     wes_dir = (
         test_path / "../examples/cases/heterogeneous_wind_rose_map/wind_energy_system/"
     )
     _run_foxes(wes_dir, output_dir)
 
 
-def test_foxes_simple_wind_rose(foxes_engine, output_dir):
+def test_foxes_simple_wind_rose(output_dir):
     wes_dir = test_path / "../examples/cases/simple_wind_rose/wind_energy_system/"
     _run_foxes(wes_dir, output_dir)
 
 
-def test_foxes_timeseries_with_operating_flag(foxes_engine, output_dir):
+def test_foxes_timeseries_with_operating_flag(output_dir):
     wes_dir = (
         test_path
         / "../examples/cases/timeseries_with_operating_flag/wind_energy_system/"

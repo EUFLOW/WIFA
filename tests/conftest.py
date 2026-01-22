@@ -120,17 +120,3 @@ def cleanup_output_dir(request):
     if not test_failed:
         if output_path.exists():
             shutil.rmtree(output_path)
-
-
-@pytest.fixture
-def foxes_engine():
-    """
-    Ensure FOXES engine state is reset after each test.
-
-    Lets foxes use its default engine, then resets state after the test
-    to prevent leakage between tests.
-    """
-    yield None
-
-    # Reset engine state after test
-    reset_engine()

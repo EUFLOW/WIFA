@@ -97,7 +97,7 @@ def weighted_quantile(
     return np.interp(quantiles, weighted_quantiles, values)
 
 
-def run_pywake(yamlFile, output_dir="output"):
+def run_pywake(yamlFile, output_dir=None):
     from py_wake import NOJ, BastankhahGaussian, HorizontalGrid
     from py_wake.deficit_models import SelfSimilarityDeficit2020
     from py_wake.deficit_models.fuga import FugaDeficit
@@ -179,12 +179,15 @@ def run_pywake(yamlFile, output_dir="output"):
     else:
         system_dat = yamlFile
 
-    # output_dir priority: 1) yaml file, 2) function argument, 3) default
-    output_dir = str(
-        system_dat["attributes"]
-        .get("model_outputs_specification", {})
-        .get("output_folder", output_dir)
-    )
+    # output_dir priority: 1) function argument, 2) yaml file, 3) default "output"
+    if output_dir is None:
+        output_dir = str(
+            system_dat["attributes"]
+            .get("model_outputs_specification", {})
+            .get("output_folder", "output")
+        )
+    else:
+        output_dir = str(output_dir)
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
