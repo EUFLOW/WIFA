@@ -1,75 +1,93 @@
-.. WIFA documentation master file, created by
-   sphinx-quickstart on Thu Apr 11 11:03:12 2024.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
-
-.. image:: ../img/Logo_FLOW.png
-    :align: center
-    :width: 150
+.. WIFA documentation master file
 
 =====================================
-Welcome to WIFA's documentation!
+WIFA Documentation
 =====================================
 
-WIFA integrates different tools (PyWake, foxes, wayve, code_saturne) of different fidelities to model the atmospheric flow of a wind farm, through a Python framework. This includes engineering wake models, an Atmospheric Perturbation Model (APM), and 3D CFD, all of which allow to estimate the power production of wind farms. These tools are interfaced using a common input and output schema: the WindIO ontology.
+**WIFA** (Wind Farm API) is a multi-fidelity wind farm simulation framework that integrates multiple flow modeling tools through a unified Python interface.
 
-The objective of WIFA is to make the use of these models harmonized and easier, although they are initially different both in formulation and use. In particular, this would allow chaining to other tools (e.g. load models).
+.. image:: ../img/wifa_diagram.png
+   :align: center
+   :width: 80%
+   :alt: WIFA Architecture Diagram
 
-The presented API is a culmination of close collaboration within the FLOW project. Each supported tool is a product of the institutions represented within the project.
+----
 
-Contents
---------
-  .. toctree::
-      :maxdepth: 2
+Supported Tools
+---------------
 
-      installation
+.. list-table::
+   :header-rows: 1
+   :widths: 15 20 15 50
 
-  .. toctree::
-      :maxdepth: 2
+   * - Tool
+     - Type
+     - Speed
+     - Use Case
+   * - **PyWake**
+     - Engineering wake model
+     - Fast
+     - AEP estimation, layout optimization
+   * - **foxes**
+     - Engineering wake model
+     - Fast
+     - Large farms, long time series
+   * - **wayve**
+     - Atmospheric perturbation
+     - Medium
+     - Gravity waves, farm blockage
+   * - **code_saturne**
+     - CFD (RANS)
+     - Slow (HPC)
+     - Detailed flow analysis
 
-      examples
+All tools use the common **WindIO** schema, enabling seamless comparison across fidelities.
 
-  .. toctree::
-      :maxdepth: 3
+----
 
-      API
+Quick Example
+-------------
 
-  .. toctree::
-      :maxdepth: 3
+.. tab-set::
 
-      references
+    .. tab-item:: CLI
 
+        .. code-block:: console
+
+            # Run with automatic tool selection from YAML
+            wifa system.yaml
+
+            # Run with specific tool
+            wifa_foxes system.yaml
+            wifa_pywake system.yaml
+
+    .. tab-item:: Python
+
+        .. code-block:: python
+
+            from wifa.main_api import run_api
+
+            # Run simulation (tool selected from YAML)
+            run_api("path/to/system.yaml")
+
+            # Or use tool-specific API
+            from wifa.foxes_api import run_foxes
+            results = run_foxes("system.yaml", engine="process", n_procs=4)
+
+.. toctree::
+   :hidden:
+
+   getting_started/index
+   windio
+   tools/index
+   API
+   CLI
+   references
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
 
-
-License
--------
-
-MIT License
-
-Copyright (c) 2024 EU FLOW Project
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
