@@ -3,6 +3,7 @@
 
 import os
 import sys
+from typing import Dict, List
 
 sys.path.insert(0, os.path.abspath("../.."))
 
@@ -77,7 +78,7 @@ bibtex_bibfiles = ["references.bib"]
 source_suffix = ".rst"
 master_doc = "index"
 language = "en"
-exclude_patterns = []
+exclude_patterns: List[str] = []
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -129,7 +130,7 @@ htmlhelp_basename = "WIFAdoc"
 
 # -- Options for LaTeX output ------------------------------------------------
 
-latex_elements = {}
+latex_elements: Dict[str, str] = {}
 latex_documents = [
     (master_doc, "WIFA.tex", "WIFA Documentation", "EU-FLOW", "manual"),
 ]
