@@ -20,8 +20,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - run: uv python install 3.11
-      - run: uv pip install --system -r docs/requirements.txt
-      - run: uv run --system sphinx-build -b html docs/source docs/build/html
+      - run: uv venv --python 3.11
+      - run: uv pip install -r docs/requirements.txt
+      - run: uv run sphinx-build -b html docs/source docs/build/html
       - uses: actions/upload-pages-artifact@v3
         with:
           name: github-pages
