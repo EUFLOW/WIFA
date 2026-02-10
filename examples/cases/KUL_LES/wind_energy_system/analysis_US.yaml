@@ -64,7 +64,7 @@ HPC_config:
   mesh_node_number: 2
   mesh_ntasks_per_node: 48
   mesh_wall_time_hours: 1
-  run_partition: ""
+  mesh_partition: ""
   #
   wckey: ""
 

@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-
 # Store test outcomes for conditional cleanup
 _test_outcomes = {}
 
