@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from foxes import Engine, reset_engine
+from foxes import Engine
 from windIO import __path__ as wiop
 from windIO import validate as validate_yaml
 
@@ -31,7 +31,6 @@ def _run_foxes(wes_dir):
             try:
                 run_foxes(yaml_input, output_dir=output_dir_name, engine=None)
             except Exception as e:
-                reset_engine()
                 engine = None
                 raise e
 
