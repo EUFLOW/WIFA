@@ -54,9 +54,3 @@ def test_cs_profiles(output_dir):
         / "../examples/cases/windio_4turbines_profiles_stable/wind_energy_system/"
     )
     _run_cs(wes_dir, output_dir)
-
-
-if __name__ == "__main__":
-    import pytest
-
-    pytest.main([__file__, "-v"])

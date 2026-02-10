@@ -16,10 +16,9 @@ def _run_foxes(wes_dir, output_dir):
     assert wes_dir.is_dir(), f"{wes_dir} is not a directory"
 
     for yaml_input in wes_dir.glob("system.yaml"):
-        if "_noXYgrid" not in str(yaml_input):
-            print("\nRUNNING FOXES ON", yaml_input, "\n")
-            validate_yaml(yaml_input, Path("plant/wind_energy_system"))
-            run_foxes(yaml_input, output_dir=output_dir, engine=None)
+        print("\nRUNNING FOXES ON", yaml_input, "\n")
+        validate_yaml(yaml_input, Path("plant/wind_energy_system"))
+        run_foxes(yaml_input, output_dir=output_dir)
 
 
 def test_foxes_KUL(output_dir):
@@ -78,9 +77,3 @@ def test_foxes_timeseries_with_operating_flag(output_dir):
         / "../examples/cases/timeseries_with_operating_flag/wind_energy_system/"
     )
     _run_foxes(wes_dir, output_dir)
-
-
-if __name__ == "__main__":
-    import pytest
-
-    pytest.main([__file__, "-v"])

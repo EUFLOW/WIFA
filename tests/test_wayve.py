@@ -18,9 +18,3 @@ def test_wayve_4wts(output_dir):
     )
     validate_yaml(yaml_input, Path("plant/wind_energy_system"))
     run_wayve(yaml_input, output_dir=output_dir, debug_mode=True)
-
-
-if __name__ == "__main__":
-    import pytest
-
-    pytest.main([__file__, "-v"])
