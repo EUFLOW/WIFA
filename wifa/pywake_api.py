@@ -159,6 +159,10 @@ def run_pywake(yamlFile, output_dir="output"):
             if name in resource_ds:
                 resource_ds = resource_ds.rename({name: rename_map[name]})
 
+        # density is passed as Air_density kwarg to wfm(), not embedded in site
+        if "density" in resource_ds:
+            resource_ds = resource_ds.drop_vars("density")
+
         if "P" not in resource_ds and "time" in resource_ds.dims:
             n_time = len(resource_ds.time)
             # Create uniform probability array (1/N)
@@ -365,6 +369,7 @@ def run_pywake(yamlFile, output_dir="output"):
     # construct site
     ##################
     operating = 1
+    air_density = None
     additional_heights = []
     if "time" in resource_dat["wind_resource"].keys():
         timeseries = True
@@ -431,6 +436,14 @@ def run_pywake(yamlFile, output_dir="output"):
             assert operating.shape[0] == len(x)
         else:
             operating = np.ones((len(x), len(cases_idx)))
+
+        if "density" in resource_dat["wind_resource"]:
+            density_vals, density_dims = get_resource_data("density")
+            density_vals = density_vals[cases_idx]
+            if "wind_turbine" in density_dims:
+                air_density = density_vals.T  # (n_time, n_wt) -> (n_wt, n_time)
+            else:
+                air_density = density_vals  # (n_time,) uniform across turbines
 
         if len(hub_heights) > 1:
             speeds = []
@@ -863,6 +876,9 @@ def run_pywake(yamlFile, output_dir="output"):
     # If it's missing (common in Hornsrev1Site), pass the local TI variable
     if "TI" not in site.ds.data_vars:
         sim_kwargs["TI"] = TI
+
+    if air_density is not None:
+        sim_kwargs["Air_density"] = air_density
 
     sim_res = windFarmModel(**sim_kwargs)
     aep = sim_res.aep(normalize_probabilities=not timeseries).sum()
