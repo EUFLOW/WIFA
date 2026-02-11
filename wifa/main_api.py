@@ -8,10 +8,10 @@ from windIO import load_yaml
 from windIO import validate as validate_yaml
 
 from .cs_api.cs_modules.csLaunch.cs_run_function import run_code_saturne
+from .floris_api import run_floris
 from .foxes_api import run_foxes
 from .pywake_api import run_pywake
 from .wayve_api import run_wayve
-from .floris_api import run_floris
 
 sys.path.append(windIO.__path__[0])
 
@@ -19,7 +19,7 @@ sys.path.append(windIO.__path__[0])
 def run_api(yaml_input):
     # validate input
     validate_yaml(yaml_input, windIO.__path__[0] + "/plant/wind_energy_system.yaml")
-    
+
     # get number of turbines
     if isinstance(yaml_input, dict):
         yaml_dat = yaml_input
