@@ -1,0 +1,37 @@
+/* Custom CSS for WIFA Documentation - PyData Sphinx Theme */
+
+/* Consistent border-radius */
+.sd-card,
+div.highlight pre,
+table.docutils,
+.admonition {
+    border-radius: 6px;
+}
+
+table.docutils {
+    overflow: hidden;
+}
+
+/* Hover effects for interactive elements */
+.sd-card:hover,
+.sd-btn-outline-primary:hover,
+.sd-btn-outline-secondary:hover,
+.sd-btn-outline-info:hover {
+    transform: translateY(-2px);
+    transition: all 0.2s ease-in-out;
+}
+
+.sd-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Tab styling */
+.sd-tab-set > input:checked + label {
+    border-bottom-width: 3px;
+}
+
+/* Table padding */
+.bd-content table.docutils td,
+.bd-content table.docutils th {
+    padding: 0.75rem;
+}

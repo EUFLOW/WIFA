@@ -7,7 +7,7 @@ Inflow refers to the meteorological profiles provided as boundary and initial co
 
 A summary of the inflow profile methodology is summarized in the following figure (more details are given in the next sections).
 
-.. figure:: ../img/cs_inflow_Ms4Release.drawio.png
+.. figure:: ../../img/cs_inflow_Ms4Release.drawio.png
 
    Schematic representation of the choice of inflow method as a function of input parameters
 
@@ -30,7 +30,7 @@ In that case, profiles from Monin-Obukhov similarity theory matching the ``wind_
 
 If input data contains at least one variable describing the upper boundary layer and free atmosphere (``ABL_height``, ``capping_inversion_thickness``, ``capping_inversion_strength``, or ``lapse_rate``), the temperature profile above the boundary layer height is constructed based on the parameters provided according to the following figure.
 
-.. figure:: ../img/temp_profile.png
+.. figure:: ../../img/temp_profile.png
    :scale: 50%
 
    Potential temperature profile above the boundary layer height :math:`H` (``ABL_height``) with :math:`\Delta h` corresponding to ``capping_inversion_thickness``, :math:`\Delta \theta` to ``capping_inversion_strength`` and :math:`\Gamma` to ``lapse_rate``.
