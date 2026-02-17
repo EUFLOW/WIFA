@@ -91,7 +91,7 @@ def test_timeseries_per_turbine_with_density(tmp_path=Path(".")):
     output_dir = tmp_path / "output_foxes_ts"
     farm_results = run_foxes(system_dict, verbosity=0, output_dir=str(output_dir))[0]
     farmP_with = farm_results[FV.P].sum()
-    #print("Farm power with density:", farmP_with)
+    # print("Farm power with density:", farmP_with)
     assert np.isfinite(farmP_with) and farmP_with > 0
 
     # Run without density — same config but density removed
@@ -102,7 +102,7 @@ def test_timeseries_per_turbine_with_density(tmp_path=Path(".")):
         system_dict_no, verbosity=0, output_dir=str(output_dir_no)
     )[0]
     farmP_without = farm_results_no[FV.P].sum()
-    #print("Farm power without density:", farmP_without)
+    # print("Farm power without density:", farmP_without)
 
     rmtree(output_dir)
     rmtree(output_dir_no)
