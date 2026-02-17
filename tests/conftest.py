@@ -122,7 +122,10 @@ _ANALYSIS = {
     },
     "deflection_model": {"name": "None"},
     "turbulence_model": {"name": "STF2005", "c1": 1.0, "c2": 1.0},
-    "superposition_model": {"ws_superposition": "Linear", "ti_superposition": "Squared"},
+    "superposition_model": {
+        "ws_superposition": "Linear",
+        "ti_superposition": "Squared",
+    },
     "rotor_averaging": {"name": "Center"},
     "blockage_model": {"name": "None"},
 }

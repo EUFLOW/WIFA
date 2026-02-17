@@ -1,8 +1,8 @@
 import os
-import numpy as np
 from pathlib import Path
 from shutil import rmtree
 
+import numpy as np
 from windIO import __path__ as wiop
 from windIO import validate as validate_yaml
 
@@ -81,9 +81,10 @@ def test_foxes_timeseries_with_operating_flag():
     )
     _run_foxes(wes_dir)
 
+
 def test_timeseries_per_turbine_with_density(tmp_path=Path(".")):
-    from conftest import make_timeseries_per_turbine_system_dict
     import foxes.variables as FV
+    from conftest import make_timeseries_per_turbine_system_dict
 
     # Run with density
     system_dict = make_timeseries_per_turbine_system_dict("foxes")
@@ -97,7 +98,9 @@ def test_timeseries_per_turbine_with_density(tmp_path=Path(".")):
     system_dict_no = make_timeseries_per_turbine_system_dict("foxes")
     del system_dict_no["site"]["energy_resource"]["wind_resource"]["density"]
     output_dir_no = tmp_path / "output_foxes_ts_no_density"
-    farm_results_no = run_foxes(system_dict_no, verbosity=0, output_dir=str(output_dir_no))[0]
+    farm_results_no = run_foxes(
+        system_dict_no, verbosity=0, output_dir=str(output_dir_no)
+    )[0]
     farmP_without = farm_results_no[FV.P].sum()
     print("Farm power without density:", farmP_without)
 
@@ -107,13 +110,14 @@ def test_timeseries_per_turbine_with_density(tmp_path=Path(".")):
     # Density correction should change AEP (test data varies around 1.225)
     assert farmP_with != farmP_without
 
+
 if __name__ == "__main__":
-    #test_foxes_KUL()
-    #test_foxes_4wts()
-    #test_foxes_abl()
-    #test_foxes_abl_stable()
-    #test_foxes_profiles()
-    #test_foxes_heterogeneous_wind_rose_at_turbines()
-    #test_foxes_heterogeneous_wind_rose_map()
-    #test_foxes_simple_wind_rose()
+    # test_foxes_KUL()
+    # test_foxes_4wts()
+    # test_foxes_abl()
+    # test_foxes_abl_stable()
+    # test_foxes_profiles()
+    # test_foxes_heterogeneous_wind_rose_at_turbines()
+    # test_foxes_heterogeneous_wind_rose_map()
+    # test_foxes_simple_wind_rose()
     test_timeseries_per_turbine_with_density()
