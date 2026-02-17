@@ -41,7 +41,7 @@ classifiers = [
 requires-python = ">=3.9,<3.12"
 dependencies = [
     "py_wake>=2.6.5",
-    "foxes>=1.7.0",
+    "foxes @ git+https://github.com/FraunhoferIWES/foxes.git@eu_flow",
     "windIO @ git+https://github.com/EUFlow/windIO.git",
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
     #"numpy<2",
