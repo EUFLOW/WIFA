@@ -68,6 +68,9 @@ Homepage = "https://github.com/EUFLOW/WIFA/"
 Repository = "https://github.com/EUFLOW/WIFA.git"
 "Bug Tracker" = "https://github.com/EUFLOW/WIFA/issues"
 
+[tool.pytest.ini_options]
+pythonpath = ["tests"]
+
 [tool.setuptools.packages.find]
 exclude = ["notebooks", "examples", "tests", "docs", "recipe", "results", "output"]
 
