@@ -112,12 +112,12 @@ def test_timeseries_per_turbine_with_density(tmp_path=Path(".")):
 
 
 if __name__ == "__main__":
-    # test_foxes_KUL()
-    # test_foxes_4wts()
-    # test_foxes_abl()
-    # test_foxes_abl_stable()
-    # test_foxes_profiles()
-    # test_foxes_heterogeneous_wind_rose_at_turbines()
-    # test_foxes_heterogeneous_wind_rose_map()
-    # test_foxes_simple_wind_rose()
+    test_foxes_KUL()
+    test_foxes_4wts()
+    test_foxes_abl()
+    test_foxes_abl_stable()
+    test_foxes_profiles()
+    test_foxes_heterogeneous_wind_rose_at_turbines()
+    test_foxes_heterogeneous_wind_rose_map()
+    test_foxes_simple_wind_rose()
     test_timeseries_per_turbine_with_density()
