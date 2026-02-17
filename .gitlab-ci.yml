@@ -1,38 +1,36 @@
-image: continuumio/anaconda3:latest
+image: python:3.11
 
 stages:
   - test
   - deploy
 
+variables:
+  UV_SYSTEM_PYTHON: "1"
+
+.install_uv: &install_uv
+  - curl -LsSf https://astral.sh/uv/install.sh | sh
+  - export PATH="$HOME/.local/bin:$PATH"
+
 test_flow_api:
-  stage:
-    test
-  script:
+  stage: test
+  before_script:
     - apt-get update && apt-get install -y git-lfs
     - git lfs install
-    - pip install --upgrade pip
-    - pip install git+https://gitlab.windenergy.dtu.dk/TOPFARM/PyWake.git@v2.6.5
-    - pip install -e .[test] # this installs wifa, foxes, wayve, windIO, pytest
-    - py.test --durations=0 tests/
+    - *install_uv
+  script:
+    - uv pip install git+https://gitlab.windenergy.dtu.dk/TOPFARM/PyWake.git@v2.6.5
+    - uv pip install -e .[test]
+    - pytest --durations=0 tests/
   except:
     - /^test_doc.*/
 
 pages:
-  stage:
-    deploy
+  stage: deploy
+  before_script:
+    - *install_uv
   script:
-    - pip install --upgrade pip
-    - conda config --set ssl_verify false
-    - conda install pandoc
-    - pip install sphinx --upgrade
-    - pip install nbsphinx --upgrade
-    - pip install sphinx_rtd_theme
-    - pip install sphinx-rtd-dark-mode
-    - pip install sphinxcontrib-bibtex
-    - cd docs
-    - mkdir html
-    - sphinx-build source html/
-    - cd ../; mv docs/html public/
+    - uv pip install -r docs/requirements.txt
+    - sphinx-build -b html docs/source public/
   artifacts:
     paths:
       - public
