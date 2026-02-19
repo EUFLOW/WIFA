@@ -3,7 +3,6 @@ import os
 import sys
 
 import windIO
-import yaml
 from windIO import load_yaml
 from windIO import validate as validate_yaml
 
