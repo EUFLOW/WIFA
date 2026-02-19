@@ -8,6 +8,7 @@ import mpmath
 import numpy as np
 import xarray as xr
 from scipy.interpolate import interp1d
+from scipy.special import gamma as scipy_gamma
 from windIO import load_yaml
 
 
@@ -95,17 +96,14 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
     ######################
     # Select timestamps
     times = resource_dat["wind_resource"]["time"]
-    if (
-        "all_occurences"
-        in system_dat["attributes"]["model_outputs_specification"]["run_configuration"]
+    run_config = system_dat["attributes"]["model_outputs_specification"][
+        "run_configuration"
+    ]
+    if "times_run" in run_config and not run_config["times_run"].get(
+        "all_occurences", True
     ):
-        all_occ = system_dat["attributes"]["model_outputs_specification"][
-            "run_configuration"
-        ]["all_occurences"]
-        if not all_occ:
-            subset = system_dat["attributes"]["model_outputs_specification"][
-                "run_configuration"
-            ]["subset"]
+        if "subset" in run_config["times_run"]:
+            subset = run_config["times_run"]["subset"]
             times = [times[i] for i in subset]
     # Get turbine variables to output
     turbine_nc_filename = "turbine_data.nc"
@@ -211,7 +209,7 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
             # Add to output list
             ds_list.append(ds)
             # Flow field outputs #
-            if report_flow:
+            if report_flow and not debug_mode:
                 # Callables for flow evaluation
                 u_bg_evaluator = coupling.set_up_u_bg_evaluator(
                     abl
@@ -265,7 +263,7 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
     ds_full = xr.concat(ds_list, dim="states")
     output_fn = Path(output_dir) / turbine_nc_filename
     ds_full.to_netcdf(output_fn)
-    if report_flow:
+    if report_flow and ds_ff_list:
         ds_ff_full = xr.concat(ds_ff_list, dim="states")
         output_fn = Path(output_dir) / flow_nc_filename
         ds_ff_full.to_netcdf(output_fn)
@@ -302,22 +300,25 @@ def nieuwstadt83_profiles(zh, v, wd, z0=1.0e-1, h=1.5e3, fc=1.0e-4, ust=0.666):
         alpha = 0.5 + 0.5 * np.sqrt(1 + 4j * C)
         sigma_s = np.zeros(len(zs), dtype=np.complex128)
         wd_s = np.zeros(len(zs), dtype=np.complex128)
+        # Pre-compute gamma values once per iteration (not per z-point)
+        gamma_alpha = complex(scipy_gamma(alpha))
+        gamma_2alpha = complex(scipy_gamma(2 * alpha))
+        prefactor_sigma = alpha * gamma_alpha**2 / gamma_2alpha
+        prefactor_wd = (1j * alpha**2 * gamma_alpha**2) / (kappa * C * gamma_2alpha)
         with np.errstate(
             invalid="ignore"
         ):  # z>=h will result in Nan. This is set to 0 below.
             for k in range(len(zs)):
+                z_ratio = 1.0 - zs[k] / h
                 sigma_s[k] = (
-                    alpha
-                    * (mpmath.gamma(alpha)) ** 2
-                    / mpmath.gamma(2 * alpha)
-                    * np.power(1.0 - zs[k] / h, alpha)
-                    * mpmath.hyp2f1(alpha - 1, alpha, 2 * alpha, 1 - zs[k] / h)
+                    prefactor_sigma
+                    * np.power(z_ratio, alpha)
+                    * complex(mpmath.hyp2f1(alpha - 1, alpha, 2 * alpha, z_ratio))
                 )
                 wd_s[k] = (
-                    (1j * alpha**2 * (mpmath.gamma(alpha)) ** 2)
-                    / (kappa * C * mpmath.gamma(2 * alpha))
-                    * (1 - zs[k] / h) ** (alpha - 1)
-                    * mpmath.hyp2f1(alpha + 1, alpha - 1, 2 * alpha, 1 - zs[k] / h)
+                    prefactor_wd
+                    * np.power(z_ratio, alpha - 1)
+                    * complex(mpmath.hyp2f1(alpha + 1, alpha - 1, 2 * alpha, z_ratio))
                 )
         # Set Nan to 0
         sigma_s[np.isnan(sigma_s)] = np.complex128(0.0)
