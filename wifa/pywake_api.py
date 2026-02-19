@@ -384,6 +384,16 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
     else:
         operating = np.ones((len(x_positions), len(cases_idx)))
 
+    # Handle air density
+    air_density = None
+    if "density" in wind_resource:
+        density_vals, density_dims = get_resource_data("density")
+        density_vals = density_vals[cases_idx]
+        if "wind_turbine" in density_dims:
+            air_density = density_vals.T  # (n_time, n_wt) -> (n_wt, n_time)
+        else:
+            air_density = density_vals  # (n_time,) uniform across turbines
+
     # Handle multi-height interpolation
     additional_heights = []
     hh = list(hub_heights.values())[0]
@@ -470,6 +480,7 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
         "operating": operating,
         "additional_heights": additional_heights,
         "cases_idx": cases_idx,
+        "air_density": air_density,
     }
 
 
@@ -885,6 +896,10 @@ def run_simulation(site, turbine, wake_config, site_data, x, y, turbine_types):
     # Pass TI if not in site's data variables
     if "TI" not in site.ds.data_vars:
         sim_kwargs["TI"] = site_data["TI"]
+
+    # Pass air density if available
+    if site_data.get("air_density") is not None:
+        sim_kwargs["Air_density"] = site_data["air_density"]
 
     # Run simulation
     sim_res = wind_farm_model(**sim_kwargs)
