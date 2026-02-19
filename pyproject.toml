@@ -42,6 +42,7 @@ dependencies = [
     "foxes @ git+https://github.com/FraunhoferIWES/foxes.git@eu_flow",
     "windIO @ git+https://github.com/EUFlow/windIO.git",
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
+    "numpy<2.0",
     "xarray>=2022.0.0,<2025",
     "mpmath",
 ]
