@@ -44,7 +44,6 @@ dependencies = [
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
     "xarray>=2022.0.0,<2025",
     "mpmath",
-    "numpy>=2.0.0",
 ]
 
 [project.optional-dependencies]
