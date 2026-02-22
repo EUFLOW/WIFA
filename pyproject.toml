@@ -42,6 +42,7 @@ requires-python = ">=3.9,<3.12"
 dependencies = [
     "py_wake>=2.6.5",
     "foxes>=1.6.2",
+    "floris>=4.0",
     "windIO @ git+https://github.com/EUFlow/windIO.git",
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
     #"numpy<2",
