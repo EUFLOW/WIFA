@@ -40,9 +40,9 @@ requires-python = ">=3.9,<3.12"
 dependencies = [
     "py_wake>=2.6.5",
     "foxes>=1.6.2",
-    "floris>=4.0",
     "windIO @ git+https://github.com/EUFlow/windIO.git",
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
+    "floris @ git+https://github.com/lejeunemax/floris.git@windIO",
     "xarray>=2022.0.0,<2025",
     "mpmath",
 ]
@@ -82,6 +82,7 @@ exclude = ["notebooks", "examples", "tests", "docs", "recipe", "results", "outpu
 [project.scripts]
 wifa = "wifa.main_api:run"
 wifa_foxes = "wifa.foxes_api:run"
+wifa_floris = "wifa.floris_api:run"
 wifa_pywake = "wifa.pywake_api:run"
 wifa_wayve = "wifa.wayve_api:run"
 wifa_saturne = "wifa.cs_api.cs_modules.csLaunch.cs_run_function:run"

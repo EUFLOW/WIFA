@@ -79,7 +79,7 @@ def create_output_dir():
     return output_dir_name
 
 
-def _run_floris(yaml_path):
+def _run_floris(yaml_path, drop_fields = True):
     """Run FLORIS via WIFA, load outputs, and clean up."""
     print(f"\nRUNNING FLORIS ON {yaml_path}\n")
 
@@ -88,6 +88,9 @@ def _run_floris(yaml_path):
     yaml_input = load_yaml(yaml_path)
     yaml_input["attributes"]["model_outputs_specification"]["output_folder"] = save_dir
     yaml_input["attributes"]["flow_model"]["name"] = "floris"
+
+    if drop_fields:
+        yaml_input["attributes"]["model_outputs_specification"].pop("flow_field", None)
 
     # Run simulation
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -392,7 +395,7 @@ def test_floris_simple_wind_rose(floris_config):
     wes_dir = (
         test_path / "../examples/cases/simple_wind_rose/wind_energy_system/system.yaml"
     )
-    output_data = _run_floris(wes_dir)
+    output_data = _run_floris(wes_dir, drop_fields=True)
     powers_wifa = output_data["PowerTable.nc"]["power"].values
 
     floris_dict = floris_config.copy()
@@ -415,7 +418,7 @@ def test_floris_timeseries_with_operating_flag(floris_config):
         test_path
         / "../examples/cases/timeseries_with_operating_flag/wind_energy_system/system.yaml"
     )
-    output_data = _run_floris(wes_dir)
+    output_data = _run_floris(wes_dir, drop_fields=True)
     powers_wifa = output_data["turbine_data.nc"]["power"].values
 
     floris_dict = floris_config.copy()
@@ -439,7 +442,7 @@ def test_floris_multiple_turbines(floris_config):
         test_path
         / "../examples/cases/windio_4turbines_multipleTurbines/wind_energy_system/system.yaml"
     )
-    output_data = _run_floris(wes_dir)
+    output_data = _run_floris(wes_dir, drop_fields=True)
     powers_wifa = output_data["turbine_data.nc"]["power"].values
 
     floris_dict = floris_config.copy()
@@ -477,3 +480,7 @@ def test_output_dir():
     yield output_dir
     if output_dir.exists():
         shutil.rmtree(output_dir)
+
+
+if __name__ == "__main__":
+    pytest.main([str(CWD / "test_floris.py"), "-v"])
