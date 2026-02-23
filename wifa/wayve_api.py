@@ -825,8 +825,8 @@ def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
         # Geostrophic wind speed
         z = np.linspace(h, 15.0e3, 1000)
         _trapezoid = (
-            getattr(np, "trapezoid") 
-            if hasattr(np, "trapezoid") 
+            getattr(np, "trapezoid")
+            if hasattr(np, "trapezoid")
             else getattr(np, "trapz")
         )
         U3 = _trapezoid(np.interp(z, zs, us), z) / (15.0e3 - h)
