@@ -79,7 +79,7 @@ def create_output_dir():
     return output_dir_name
 
 
-def _run_floris(yaml_path, drop_fields = True):
+def _run_floris(yaml_path, drop_fields=True):
     """Run FLORIS via WIFA, load outputs, and clean up."""
     print(f"\nRUNNING FLORIS ON {yaml_path}\n")
 
