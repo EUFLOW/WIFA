@@ -19,7 +19,10 @@ try:
     import floris
     from floris.turbine_library import build_cosine_loss_turbine_dict
 except (ImportError, TypeError):
-    pytest.skip("floris not available or incompatible with this Python version", allow_module_level=True)
+    pytest.skip(
+        "floris not available or incompatible with this Python version",
+        allow_module_level=True,
+    )
 from windIO import __path__ as wiop
 from windIO import load_yaml
 from windIO import validate as validate_yaml
