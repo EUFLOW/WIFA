@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -439,6 +440,25 @@ def test_turbine_specific_speeds_timeseries():
 
     # 3. Assert match
     npt.assert_allclose(wifa_res, manual_aep, rtol=1e-6)
+
+
+def test_pywake_dict_timeseries_per_turbine_with_density(tmp_path):
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    # Run with density
+    system_dict = make_timeseries_per_turbine_system_dict("pywake")
+    output_dir = tmp_path / "output_pywake_ts"
+    aep_with = run_pywake(system_dict, output_dir=str(output_dir))
+    assert np.isfinite(aep_with) and aep_with > 0
+
+    # Run without density — same config but density removed
+    system_dict_no = make_timeseries_per_turbine_system_dict("pywake")
+    del system_dict_no["site"]["energy_resource"]["wind_resource"]["density"]
+    output_dir_no = tmp_path / "output_pywake_ts_no_density"
+    aep_without = run_pywake(system_dict_no, output_dir=str(output_dir_no))
+
+    # Density correction should change AEP (test data varies around 1.225)
+    assert aep_with != aep_without
 
 
 # if __name__ == "__main__":

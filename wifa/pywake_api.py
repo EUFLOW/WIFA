@@ -198,6 +198,7 @@ def dict_to_site(resource_dict):
         "sector_probability": "Sector_frequency",
         "turbulence_intensity": "TI",
         "wind_turbine": "i",
+        "density": "Air_density",
     }
 
     # Smart rename for wind_direction and wind_speed
@@ -428,14 +429,21 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
                 TIs.append(ti_int)
             TI = ti_int
 
+            data_vars = {
+                "WS": (["h", "time"], np.array(speeds)),
+                "WD": (["h", "time"], np.array(dirs)),
+                "TI": (["h", "time"], np.array(TIs)),
+                "P": 1,
+            }
+            if "density" in wind_resource:
+                density_vals = np.array(wind_resource["density"]["data"])[cases_idx]
+                density_dims = wind_resource["density"].get("dims", ["time"])
+                if "wind_turbine" in density_dims:
+                    density_vals = np.mean(density_vals, axis=1)
+                data_vars["Air_density"] = (["time"], density_vals)
             site = XRSite(
                 xr.Dataset(
-                    data_vars={
-                        "WS": (["h", "time"], np.array(speeds)),
-                        "WD": (["h", "time"], np.array(dirs)),
-                        "TI": (["h", "time"], np.array(TIs)),
-                        "P": 1,
-                    },
+                    data_vars=data_vars,
                     coords={"h": seen, "time": np.arange(len(times))},
                 )
             )
@@ -452,6 +460,9 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
             site = dict_to_site(wind_resource)
         else:
             site = Hornsrev1Site()
+            if "density" in wind_resource:
+                density_vals = np.array(wind_resource["density"]["data"])[cases_idx]
+                site.ds["Air_density"] = (("time",), density_vals)
 
         # Handle TI
         if "turbulence_intensity" not in wind_resource:
