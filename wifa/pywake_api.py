@@ -430,11 +430,11 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
             TI = ti_int
 
             data_vars = {
-                        "WS": (["h", "time"], np.array(speeds)),
-                        "WD": (["h", "time"], np.array(dirs)),
-                        "TI": (["h", "time"], np.array(TIs)),
-                        "P": 1,
-                    }
+                "WS": (["h", "time"], np.array(speeds)),
+                "WD": (["h", "time"], np.array(dirs)),
+                "TI": (["h", "time"], np.array(TIs)),
+                "P": 1,
+            }
             if "density" in wind_resource:
                 density_vals = np.array(wind_resource["density"]["data"])[cases_idx]
                 density_dims = wind_resource["density"].get("dims", ["time"])
