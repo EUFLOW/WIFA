@@ -49,9 +49,8 @@ pywake = ["py_wake>=2.6.5"]
 foxes = ["foxes>=1.6.2"]
 floris = ["floris @ git+https://github.com/lejeunemax/floris.git@windIO"]
 wayve = [
-    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
+    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve",
     "mpmath",
-    "numpy<2",  # wayve uses np.trapz, removed in numpy 2.0
 ]
 cs = []  # code_saturne is a subprocess, no pip dependency
 all = [
