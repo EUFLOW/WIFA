@@ -824,8 +824,13 @@ def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
             )
         # Geostrophic wind speed
         z = np.linspace(h, 15.0e3, 1000)
-        U3 = np.trapz(np.interp(z, zs, us), z) / (15.0e3 - h)
-        V3 = np.trapz(np.interp(z, zs, vs), z) / (15.0e3 - h)
+        _trapezoid = (
+            getattr(np, "trapezoid")
+            if hasattr(np, "trapezoid")
+            else getattr(np, "trapz")
+        )
+        U3 = _trapezoid(np.interp(z, zs, us), z) / (15.0e3 - h)
+        V3 = _trapezoid(np.interp(z, zs, vs), z) / (15.0e3 - h)
     # Upper layer thickness
     h2 = h - h1
     if (
