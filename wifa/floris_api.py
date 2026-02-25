@@ -5,6 +5,8 @@ import numpy as np
 import windIO
 from windIO import load_yaml
 
+from wifa._optional import require
+
 if TYPE_CHECKING:
     from floris import FlorisModel
 
@@ -30,6 +32,7 @@ def run_floris(yaml_input):
     - Some advanced windIO properties may not be fully supported. These include:
       blockage_model, rotor_averaging, and axial_induction_model.
     """
+    require("floris", "floris")
 
     from floris import FlorisModel
     from floris.read_windio import TrackedDict

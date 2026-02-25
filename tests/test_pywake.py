@@ -4,6 +4,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 import xarray as xr
+
+pytest.importorskip("py_wake", reason="py_wake not installed, install with: pip install wifa[pywake]")
+
 from py_wake.deficit_models.gaussian import BastankhahGaussian
 from py_wake.examples.data.dtu10mw._dtu10mw import DTU10MW
 from py_wake.examples.data.hornsrev1 import Hornsrev1Site

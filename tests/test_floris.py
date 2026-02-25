@@ -11,10 +11,13 @@ import os
 import shutil
 from pathlib import Path
 
-import floris
 import numpy as np
 import pytest
 import xarray as xr
+
+pytest.importorskip("floris", reason="floris not installed, install with: pip install wifa[floris]")
+
+import floris
 from floris.turbine_library import build_cosine_loss_turbine_dict
 from windIO import __path__ as wiop
 from windIO import load_yaml

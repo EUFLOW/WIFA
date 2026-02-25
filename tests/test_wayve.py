@@ -1,6 +1,10 @@
 import os
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("wayve", reason="wayve not installed, install with: pip install wifa[wayve]")
+
 from windIO import __path__ as wiop
 from windIO import validate as validate_yaml
 
