@@ -11,7 +11,6 @@ import os
 import shutil
 from pathlib import Path
 
-import floris
 import numpy as np
 import pytest
 import xarray as xr
