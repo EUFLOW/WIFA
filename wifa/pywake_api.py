@@ -53,12 +53,12 @@ def get_with_default(data, key, defaults):
         return data[key]
 
 
-def load_and_validate_config(yaml_input, default_output_dir="output"):
+def load_and_validate_config(yaml_input, output_dir=None):
     """Load and validate a wind energy system YAML configuration.
 
     Args:
         yaml_input: Path to YAML file (str) or pre-parsed dict
-        default_output_dir: Default output directory if not specified in config
+        output_dir: Explicit output directory (overrides YAML config if provided)
 
     Returns:
         tuple: (system_dat, output_dir) where system_dat is the parsed config dict
@@ -72,12 +72,15 @@ def load_and_validate_config(yaml_input, default_output_dir="output"):
     else:
         system_dat = yaml_input
 
-    # output_dir priority: 1) yaml file, 2) function argument, 3) default
-    output_dir = str(
-        system_dat["attributes"]
-        .get("model_outputs_specification", {})
-        .get("output_folder", default_output_dir)
-    )
+    # output_dir priority: 1) function argument, 2) yaml file, 3) default "output"
+    if output_dir is None:
+        output_dir = str(
+            system_dat["attributes"]
+            .get("model_outputs_specification", {})
+            .get("output_folder", "output")
+        )
+    else:
+        output_dir = str(output_dir)
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -1033,7 +1036,7 @@ def _write_yaml_output(output_dir):
         file.write(yaml_content)
 
 
-def run_pywake(yaml_input, output_dir="output"):
+def run_pywake(yaml_input, output_dir=None):
     """Run a PyWake wind farm simulation.
 
     This is the main entry point that orchestrates the simulation workflow:
@@ -1046,7 +1049,7 @@ def run_pywake(yaml_input, output_dir="output"):
 
     Args:
         yaml_input: Path to YAML file (str) or pre-parsed dict
-        output_dir: Output directory (can be overridden in YAML config)
+        output_dir: Output directory (overrides YAML config if provided)
 
     Returns:
         float: Total AEP in GWh

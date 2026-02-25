@@ -50,7 +50,7 @@ def four_turbine_site(config_params):
     return wfm(x, y, ws=ws, wd=wd, time=True), config_name
 
 
-def test_pywake_KUL():
+def test_pywake_KUL(output_dir):
     yaml_input = (
         test_path / "../examples/cases/KUL_LES/wind_energy_system/system_pywake.yaml"
     )
@@ -59,10 +59,7 @@ def test_pywake_KUL():
     validate_yaml(yaml_input, Path("plant/wind_energy_system"))
 
     # compute AEP (next step is to return a richer set of outputs)
-    output_dir_name = "output_pywake_4wts"
-    Path(output_dir_name).mkdir(parents=True, exist_ok=True)
-    pywake_aep = run_pywake(yaml_input, output_dir=output_dir_name)
-    # print(pywake_aep)
+    pywake_aep = run_pywake(yaml_input, output_dir=output_dir)
 
     # Check result
     pywake_aep_expected = 7515.2
@@ -87,7 +84,7 @@ def config_params(request):
     return request.param
 
 
-def test_pywake_4wts(four_turbine_site):
+def test_pywake_4wts(four_turbine_site, output_dir):
     wfm, config_name = four_turbine_site
 
     yaml_input = (
@@ -98,17 +95,14 @@ def test_pywake_4wts(four_turbine_site):
     validate_yaml(yaml_input, Path("plant/wind_energy_system"))
 
     # compute AEP (next step is to return a richer set of outputs)
-    output_dir_name = "output_pywake_4wts"
-    Path(output_dir_name).mkdir(parents=True, exist_ok=True)
-    pywake_aep = run_pywake(yaml_input, output_dir=output_dir_name)
-    # print(pywake_aep)
+    pywake_aep = run_pywake(yaml_input, output_dir=output_dir)
 
     # Check result
     pywake_aep_expected = wfm.aep().sum()
     npt.assert_array_almost_equal(pywake_aep, pywake_aep_expected, 0)
 
 
-def test_pywake_4wts_operating_flag():
+def test_pywake_4wts_operating_flag(output_dir):
     x = [0, 1248.1, 2496.2, 3744.3]
     y = [0, 0, 0, 0]
     ws = [10.0910225, 10.233016, 8.797999, 9.662098, 9.78371, 10.307792]
@@ -148,10 +142,7 @@ def test_pywake_4wts_operating_flag():
     validate_yaml(yaml_input, Path("plant/wind_energy_system"))
 
     # compute AEP (next step is to return a richer set of outputs)
-    output_dir_name = "output_pywake_4wts"
-    Path(output_dir_name).mkdir(parents=True, exist_ok=True)
-    pywake_aep = run_pywake(yaml_input, output_dir=output_dir_name)
-    # print(pywake_aep)
+    pywake_aep = run_pywake(yaml_input, output_dir=output_dir)
 
     # Check result
     pywake_aep_expected = res.aep().sum()
@@ -181,7 +172,9 @@ POWER_CT_TABLE = PowerCtTabular(
 # fmt: on
 
 
-def test_simple_wind_rose():
+def test_simple_wind_rose(cleanup_output_dir):
+    # Note: This test uses the output_folder from the YAML ("output/"), not a fixture.
+    # The cleanup_output_dir fixture handles cleanup of "output/".
     _ = run_pywake(
         test_path / "../examples/cases/simple_wind_rose/wind_energy_system/system.yaml"
     )

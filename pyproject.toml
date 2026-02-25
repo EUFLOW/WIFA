@@ -41,8 +41,9 @@ dependencies = [
     "py_wake>=2.6.5",
     "foxes>=1.6.2",
     "windIO @ git+https://github.com/EUFlow/windIO.git",
-    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@dev_foxes",
+    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve",
     "floris @ git+https://github.com/lejeunemax/floris.git@windIO",
+    "numpy>=1.22,<3.0",
     "xarray>=2022.0.0,<2025",
     "mpmath",
 ]
