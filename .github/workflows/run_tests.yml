@@ -44,7 +44,7 @@ jobs:
         apt-get update && apt-get install -y git-lfs
         git lfs install
         pip install --upgrade pip
-        pip install -e .[test]
+        pip install -e ".[all,test]"
     - name: Test with pytest
       run: |
         py.test --durations=0 tests/
