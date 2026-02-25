@@ -9,12 +9,21 @@ Run with: pytest tests/test_floris.py -v
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
-import floris
 import numpy as np
 import pytest
 import xarray as xr
+
+if sys.version_info < (3, 10):
+    pytest.skip("floris requires Python >= 3.10", allow_module_level=True)
+
+pytest.importorskip(
+    "floris", reason="floris not installed, install with: pip install wifa[floris]"
+)
+
+import floris
 from floris.turbine_library import build_cosine_loss_turbine_dict
 from windIO import __path__ as wiop
 from windIO import load_yaml

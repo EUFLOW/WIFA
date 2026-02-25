@@ -11,6 +11,8 @@ from scipy.special import gamma
 from windIO import dict_to_netcdf, load_yaml
 from windIO import validate as validate_yaml
 
+from wifa._optional import require
+
 # Define default values for wind_deficit_model parameters
 DEFAULTS = {
     "wind_deficit_model": {
@@ -1052,6 +1054,8 @@ def run_pywake(yaml_input, output_dir="output"):
         float: Total AEP in GWh
     """
     # Step 1: Load and validate configuration
+    require("py_wake", "pywake")
+
     system_dat, output_dir = load_and_validate_config(yaml_input, output_dir)
 
     # Step 2: Create turbine objects

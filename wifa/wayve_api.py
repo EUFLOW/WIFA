@@ -3,16 +3,18 @@ import argparse
 import warnings
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import mpmath
 import numpy as np
 import xarray as xr
 from scipy.interpolate import interp1d
 from scipy.special import gamma as scipy_gamma
 from windIO import load_yaml
 
+from wifa._optional import require
+
 
 def run_wayve(yamlFile, output_dir="output", debug_mode=False):
+    require("wayve", "wayve")
+
     # General APM setup
     from wayve.apm import APM
     from wayve.grid.grid import Stat2Dgrid
@@ -271,6 +273,8 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
 
 def nieuwstadt83_profiles(zh, v, wd, z0=1.0e-1, h=1.5e3, fc=1.0e-4, ust=0.666):
     """Set up the cubic analytical profile from Nieuwstadt (1983), based on hub height velocity information"""
+    import mpmath
+
     # Atmospheric state setup
     from wayve.abl.abl_tools import Cg_cubic, alpha_cubic
 
@@ -393,6 +397,8 @@ def rotate_xy_arrays(xs, ys, angle):
 def ci_fitting(
     zs, ths, l_mo=5.0e3, blh=1.0e3, dh_max=300.0, serz=True, plot_fits=False
 ):
+    import matplotlib.pyplot as plt
+
     # Atmospheric state setup
     from wayve.abl import ci_methods
 
@@ -638,8 +644,6 @@ def wm_coupling_setup(analysis_dat, wake_model):
 
 
 def wake_model_setup(analysis_dat, debug_mode=False):
-    # WAYVE imports
-    from wayve.couplings.foxes_coupling import FoxesWakeModel
     from wayve.forcing.wind_farms.wake_model_coupling.wake_models.lanzilao_merging import (
         Lanzilao,
     )
@@ -666,9 +670,11 @@ def wake_model_setup(analysis_dat, debug_mode=False):
         # Use wake merging method of Lanzilao and Meyers (2021)
         wake_model = Lanzilao(ka=k_a, kb=k_b, eps_beta=ceps)
     elif wake_tool == "foxes":
+        require("foxes", "foxes")
         from foxes import ModelBook
         from foxes.input.yaml.windio.read_attributes import _read_analysis
         from foxes.utils import Dict
+        from wayve.couplings.foxes_coupling import FoxesWakeModel
 
         verbosity = 1 if debug_mode else 0
 
@@ -824,8 +830,9 @@ def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
             )
         # Geostrophic wind speed
         z = np.linspace(h, 15.0e3, 1000)
-        U3 = np.trapz(np.interp(z, zs, us), z) / (15.0e3 - h)
-        V3 = np.trapz(np.interp(z, zs, vs), z) / (15.0e3 - h)
+        _trapz = getattr(np, "trapezoid", np.trapz)
+        U3 = _trapz(np.interp(z, zs, us), z) / (15.0e3 - h)
+        V3 = _trapz(np.interp(z, zs, vs), z) / (15.0e3 - h)
     # Upper layer thickness
     h2 = h - h1
     if (

@@ -3,6 +3,8 @@ from pathlib import Path
 
 from windIO import load_yaml
 
+from wifa._optional import require
+
 
 def run_foxes(
     input_yaml,
@@ -54,6 +56,7 @@ def run_foxes(
         foxes output class
 
     """
+    require("foxes", "foxes")
 
     from foxes.input.yaml import run_dict
     from foxes.input.yaml.windio import read_windio_dict
