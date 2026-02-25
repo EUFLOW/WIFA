@@ -9,11 +9,15 @@ Run with: pytest tests/test_floris.py -v
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 import xarray as xr
+
+if sys.version_info < (3, 10):
+    pytest.skip("floris requires Python >= 3.10", allow_module_level=True)
 
 pytest.importorskip(
     "floris", reason="floris not installed, install with: pip install wifa[floris]"
