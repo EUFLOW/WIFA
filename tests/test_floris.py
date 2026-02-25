@@ -15,7 +15,9 @@ import numpy as np
 import pytest
 import xarray as xr
 
-pytest.importorskip("floris", reason="floris not installed, install with: pip install wifa[floris]")
+pytest.importorskip(
+    "floris", reason="floris not installed, install with: pip install wifa[floris]"
+)
 
 import floris
 from floris.turbine_library import build_cosine_loss_turbine_dict

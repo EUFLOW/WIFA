@@ -671,10 +671,10 @@ def wake_model_setup(analysis_dat, debug_mode=False):
         wake_model = Lanzilao(ka=k_a, kb=k_b, eps_beta=ceps)
     elif wake_tool == "foxes":
         require("foxes", "foxes")
-        from wayve.couplings.foxes_coupling import FoxesWakeModel
         from foxes import ModelBook
         from foxes.input.yaml.windio.read_attributes import _read_analysis
         from foxes.utils import Dict
+        from wayve.couplings.foxes_coupling import FoxesWakeModel
 
         verbosity = 1 if debug_mode else 0
 
