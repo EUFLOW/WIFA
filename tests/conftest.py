@@ -106,6 +106,7 @@ def cleanup_output_dir(request):
         if output_path.exists():
             shutil.rmtree(output_path)
 
+
 # DTU 10MW turbine data
 # (from examples/cases/windio_4turbines/plant_energy_turbine/DTU_10MW_turbine.yaml)
 _TURBINE = {

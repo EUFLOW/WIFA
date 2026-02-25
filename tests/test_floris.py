@@ -15,7 +15,16 @@ import floris
 import numpy as np
 import pytest
 import xarray as xr
-from floris.turbine_library import build_cosine_loss_turbine_dict
+
+try:
+    import floris
+    from floris.turbine_library import build_cosine_loss_turbine_dict
+except (ImportError, TypeError):
+    pytest.skip(
+        "floris not available or incompatible with this Python version",
+        allow_module_level=True,
+    )
+
 from windIO import __path__ as wiop
 from windIO import load_yaml
 from windIO import validate as validate_yaml
@@ -385,9 +394,9 @@ def test_floris_4wts(floris_config):
     powers_floris = fmodel.get_turbine_powers()
 
     # Use pytest.approx for better numerical comparison
-    assert powers_wifa == pytest.approx(
-        powers_floris, rel=1e-6
-    ), f"Power outputs don't match within 1e-6 tolerance"
+    assert powers_wifa == pytest.approx(powers_floris, rel=1e-6), (
+        f"Power outputs don't match within 1e-6 tolerance"
+    )
 
 
 def test_floris_simple_wind_rose(floris_config):
@@ -407,9 +416,9 @@ def test_floris_simple_wind_rose(floris_config):
     fmodel.run()
     powers_floris = fmodel.get_turbine_powers()
 
-    assert powers_wifa == pytest.approx(
-        powers_floris, rel=1e-2
-    ), f"Wind rose power outputs don't match within 1e-2 tolerance"
+    assert powers_wifa == pytest.approx(powers_floris, rel=1e-2), (
+        f"Wind rose power outputs don't match within 1e-2 tolerance"
+    )
 
 
 def test_floris_timeseries_with_operating_flag(floris_config):
@@ -431,9 +440,9 @@ def test_floris_timeseries_with_operating_flag(floris_config):
     fmodel.run()
     powers_floris = fmodel.get_turbine_powers()
 
-    assert powers_wifa == pytest.approx(
-        powers_floris, rel=1e-2
-    ), f"Operating flag power outputs don't match within 1e-2 tolerance"
+    assert powers_wifa == pytest.approx(powers_floris, rel=1e-2), (
+        f"Operating flag power outputs don't match within 1e-2 tolerance"
+    )
 
 
 def test_floris_multiple_turbines(floris_config):
@@ -462,9 +471,9 @@ def test_floris_multiple_turbines(floris_config):
 
     max_diff = np.max(np.abs(powers_wifa - powers_floris)) / np.max(np.abs(powers_wifa))
     print(f"Max relative difference: {max_diff:.6f}")
-    assert powers_wifa == pytest.approx(
-        powers_floris, rel=0.1
-    ), f"Mixed turbine power outputs don't match within 0.1 tolerance"
+    assert powers_wifa == pytest.approx(powers_floris, rel=0.1), (
+        f"Mixed turbine power outputs don't match within 0.1 tolerance"
+    )
 
 
 # ============================================================================ #
