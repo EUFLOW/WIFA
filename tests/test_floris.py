@@ -9,7 +9,13 @@ Run with: pytest tests/test_floris.py -v
 
 import os
 import shutil
+import sys
 from pathlib import Path
+
+if sys.version_info < (3, 10):
+    import pytest
+
+    pytest.skip("floris requires Python >= 3.10", allow_module_level=True)
 
 import floris
 import numpy as np
