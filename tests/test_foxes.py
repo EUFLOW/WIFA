@@ -3,6 +3,12 @@ from pathlib import Path
 from shutil import rmtree
 
 import numpy as np
+import pytest
+
+pytest.importorskip(
+    "foxes", reason="foxes not installed, install with: pip install wifa[foxes]"
+)
+
 from windIO import __path__ as wiop
 from windIO import validate as validate_yaml
 

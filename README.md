@@ -16,12 +16,12 @@ WIFA is an open-source multi-fidelity wind farm simulation framework that provid
 
 ## Supported Tools
 
-| Tool | Type | Speed | Use Case |
-|------|------|-------|----------|
-| **PyWake** | Engineering wake model | Fast | AEP estimation, layout optimization |
-| **foxes** | Engineering wake model | Fast | Large farms, long time series |
-| **wayve** | Atmospheric perturbation model | Medium | Gravity waves, farm blockage |
-| **code_saturne** | CFD (RANS) | Slow (HPC) | Detailed flow analysis |
+| Tool | Install | Type | Speed | Use Case |
+|------|---------|------|-------|----------|
+| **PyWake** | `wifa[py_wake]` | Engineering wake model | Fast | AEP estimation, layout optimization |
+| **foxes** | `wifa[foxes]` | Engineering wake model | Fast | Large farms, long time series |
+| **wayve** | `wifa[wayve]` | Atmospheric perturbation model | Medium | Gravity waves, farm blockage |
+| **code_saturne** | n/a | CFD (RANS) | Slow (HPC) | Detailed flow analysis |
 
 ## Quick Start
 
@@ -36,13 +36,17 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Create environment and install WIFA
 uv venv --python 3.11
 source .venv/bin/activate
-uv pip install wifa
+uv pip install wifa              # core only
+uv pip install "wifa[all]"       # all tools
+uv pip install "wifa[py_wake]"   # single tool
 ```
 
 Or with pip:
 
 ```bash
-pip install wifa
+pip install wifa              # core only
+pip install "wifa[all]"       # all tools
+pip install "wifa[py_wake]"   # single tool
 ```
 
 ### Run a Simulation
@@ -125,7 +129,7 @@ Contributions are welcome! Please:
    ```bash
    uv venv --python 3.11
    source .venv/bin/activate
-   uv pip install -e ".[dev,test]"
+   uv pip install -e ".[all,dev,test]"
    ```
 4. Make your changes
 5. Run tests: `pytest tests/`
