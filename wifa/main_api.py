@@ -3,7 +3,6 @@ import os
 import sys
 
 import windIO
-from windIO import load_yaml
 from windIO import validate as validate_yaml
 
 from .cs_api.cs_modules.csLaunch.cs_run_function import run_code_saturne
@@ -16,40 +15,33 @@ sys.path.append(windIO.__path__[0])
 
 
 def run_api(yaml_input):
-    # validate input
-    validate_yaml(yaml_input, "plant/wind_energy_system")
-
-    # get number of turbines
     if isinstance(yaml_input, dict):
         yaml_dat = yaml_input
     else:
-        yaml_dat = load_yaml(yaml_input)
+        yaml_dat = validate_yaml(yaml_input, "plant/wind_energy_system")
 
     model_name = yaml_dat["attributes"]["flow_model"]["name"]
 
     if model_name.lower() == "pywake":
-        pywake_aep = run_pywake(yaml_input)
+        run_pywake(yaml_dat)
 
     elif model_name.lower() == "foxes":
-        foxes_aep = run_foxes(yaml_input)
+        run_foxes(yaml_dat)
 
     elif model_name.lower() == "floris":
-        floris_aep = run_floris(yaml_input)
+        run_floris(yaml_dat)
 
     elif model_name.lower() == "wayve":
-        # Output directory
-        # yaml_input_no_ext = os.path.splitext(yaml_input)[0]  # Remove the file extension
-        # output_dir_name = 'output_wayve' + yaml_input_no_ext.replace(os.sep, '_')  # Replace directory separators
         output_dir_name = yaml_dat["attributes"]["model_outputs_specification"][
             "output_folder"
         ]
         if not os.path.exists(output_dir_name):
             os.makedirs(output_dir_name)
 
-        run_wayve(yaml_input, output_dir_name)
+        run_wayve(yaml_dat, output_dir_name)
 
     elif model_name.lower() == "codesaturne":
-        run_code_saturne(yaml_input, test_mode=True)
+        run_code_saturne(yaml_dat, test_mode=True)
 
     else:
         print("Invalid Model")
