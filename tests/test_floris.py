@@ -194,8 +194,10 @@ def create_four_turbine_farm(layout_type: str):
         turbine_dict = create_turbine("dtu_10mw")
         turbine_dicts = [turbine_dict] * 4
     elif layout_type == "multiple":
-        turbine_types = ["IEA_10MW", "IEA_15MW", "IEA_15MW", "IEA_22MW"]
-        turbine_dicts = [create_turbine(t_type) for t_type in turbine_types]
+        iea_10 = create_turbine("IEA_10MW")
+        iea_15 = create_turbine("IEA_15MW")
+        iea_22 = create_turbine("IEA_22MW")
+        turbine_dicts = [iea_10, iea_15, iea_15, iea_22]
     else:
         raise ValueError(
             f"Unknown layout_type: {layout_type}. Use 'same' or 'multiple'."

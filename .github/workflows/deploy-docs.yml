@@ -18,15 +18,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-      - run: uv python install 3.11
-      - run: uv venv --python 3.11
-      - run: uv pip install -r docs/requirements.txt
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --extra docs
       - run: uv run sphinx-build -b html docs/source docs/build/html
       - uses: actions/upload-pages-artifact@v3
         with:
           name: github-pages
           path: docs/build/html/
+      - name: Minimize uv cache
+        run: uv cache prune --ci
 
   deploy:
     runs-on: ubuntu-latest
