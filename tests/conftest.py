@@ -1,4 +1,22 @@
+import shutil
+from pathlib import Path
+
 import numpy as np
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def cleanup_test_outputs():
+    """Clean up output directories created during tests."""
+    yield
+    for pattern in ["output_pywake_*", "output_test_*"]:
+        for path in Path(".").glob(pattern):
+            if path.is_dir():
+                shutil.rmtree(path)
+    output = Path("output")
+    if output.is_dir():
+        shutil.rmtree(output)
+
 
 # DTU 10MW turbine data
 # (from examples/cases/windio_4turbines/plant_energy_turbine/DTU_10MW_turbine.yaml)
