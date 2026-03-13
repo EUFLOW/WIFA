@@ -44,7 +44,7 @@ dependencies = [
     "floris @ git+https://github.com/lejeunemax/floris.git",
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve",
     "numpy>=1.22,<3.0",
-    "xarray>=2022.0.0,<2025",
+    "xarray",
     "mpmath",
 ]
 
