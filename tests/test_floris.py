@@ -9,6 +9,7 @@ Run with: pytest tests/test_floris.py -v
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np

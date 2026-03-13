@@ -41,7 +41,9 @@ WIFA
     # .venv\Scripts\activate   # Windows
 
     # Install WIFA
-    uv pip install wifa
+    uv pip install wifa              # core only
+    uv pip install "wifa[all]"       # all tools
+    uv pip install "wifa[py_wake]"   # individual tool
 
 **From source (for development):**
 
@@ -51,13 +53,15 @@ WIFA
     cd WIFA
     uv venv --python 3.11
     source .venv/bin/activate
-    uv pip install -e ".[dev,test]"
+    uv pip install -e ".[all,dev,test]"
 
 .. note::
 
     WIFA depends on windIO (an EU-FLOW fork) which is installed automatically.
-    Each modeling tool (PyWake, foxes, wayve, code_saturne) can be installed independently.
-    If you don't install one of them, that specific flow model will not be available, but other models will still work.
+    Each modeling tool (PyWake, foxes, wayve) is available as an optional extra:
+    ``wifa[py_wake]``, ``wifa[foxes]``, ``wifa[wayve]``, or ``wifa[all]`` for all of them.
+    code_saturne must be installed independently (see below).
+    If a tool is not installed, that specific flow model will not be available, but other models will still work.
 
 WindIO
 ~~~~~~
@@ -80,6 +84,12 @@ Or clone `the windIO fork <https://github.com/EUFLOW/windIO>`_ and install:
 FOXES
 ~~~~~
 
+**Via WIFA extras (recommended):**
+
+.. code-block:: console
+
+    uv pip install "wifa[foxes]"
+
 The installation of *FOXES* is described `here in the documentation <https://fraunhoferiwes.github.io/foxes/installation.html>`_.
 
 **For the latest release:**
@@ -99,6 +109,12 @@ The installation of *FOXES* is described `here in the documentation <https://fra
 
 PyWake
 ~~~~~~
+
+**Via WIFA extras (recommended):**
+
+.. code-block:: console
+
+    uv pip install "wifa[py_wake]"
 
 The installation of *PyWake* is described in the `PyWake documentation <https://topfarm.pages.windenergy.dtu.dk/PyWake/>`_.
 
@@ -120,7 +136,13 @@ The installation of *PyWake* is described in the `PyWake documentation <https://
 WAYVE
 ~~~~~
 
-WAYVE can be downloaded and installed from `GitLab <https://gitlab.kuleuven.be/TFSO-software/wayve>`_:
+**Via WIFA extras (recommended):**
+
+.. code-block:: console
+
+    uv pip install "wifa[wayve]"
+
+WAYVE can also be downloaded and installed from `GitLab <https://gitlab.kuleuven.be/TFSO-software/wayve>`_:
 
 .. code-block:: console
 
