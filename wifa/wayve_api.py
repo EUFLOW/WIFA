@@ -177,7 +177,7 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
     for time_index, time in enumerate(times):
         if debug_mode:
             # Print timestep
-            print(f"time {time_index+1}/{len(times)}")
+            print(f"time {time_index + 1}/{len(times)}")
         try:
             # Set up ABL
             abl = flow_io_abl(resource_dat["wind_resource"], time_index, hh, h1)

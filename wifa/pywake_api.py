@@ -1,19 +1,24 @@
 import argparse
-import os
 import warnings
 from pathlib import Path
 
 import numpy as np
 import xarray as xr
-import yaml
 from scipy.interpolate import interp1d
 from scipy.special import gamma
-from windIO import dict_to_netcdf, load_yaml
-from windIO import validate as validate_yaml
+
+from wifa._optional import require
 
 from wifa._optional import require
 
 # Define default values for wind_deficit_model parameters
+
+
+def _normalize_name(name):
+    """Normalize model name for case-insensitive matching."""
+    return name.strip().lower().replace("-", "").replace("_", "")
+
+
 DEFAULTS = {
     "wind_deficit_model": {
         "name": "Jensen",
@@ -43,16 +48,25 @@ def get_with_default(data, key, defaults):
     If the value is a dictionary, apply the same process recursively.
     """
     if key not in data:
-        print("WARNING: Using default value for ", key)
+        warnings.warn(f"Using default value for {key}")
         return defaults[key]
-    elif isinstance(data[key], dict):
-        # For nested dictionaries, ensure all subkeys are checked for defaults
-        return {
-            sub_key: get_with_default(data[key], sub_key, defaults[key])
-            for sub_key in defaults[key]
-        }
-    else:
-        return data[key]
+
+    if isinstance(data[key], dict):
+        # Merge defaults into user dict: fill missing keys from defaults,
+        # but preserve all extra user-provided keys (e.g. n, n_x_grid_points).
+        # Recurse when both user and default values are dicts.
+        merged = dict(data[key])
+        for sub_key in defaults[key]:
+            if sub_key not in merged:
+                warnings.warn(f"Using default value for {sub_key}")
+                merged[sub_key] = defaults[key][sub_key]
+            elif isinstance(merged[sub_key], dict) and isinstance(
+                defaults[key][sub_key], dict
+            ):
+                merged[sub_key] = get_with_default(data[key], sub_key, defaults[key])
+        return merged
+
+    return data[key]
 
 
 def load_and_validate_config(yaml_input, default_output_dir="output"):
@@ -109,9 +123,7 @@ def create_turbines(farm_dat):
         turbine_dats = [farm_dat["turbines"]]
         type_names = "0"
     else:
-        turbine_dats = [
-            farm_dat["turbine_types"][key] for key in farm_dat["turbine_types"]
-        ]
+        turbine_dats = list(farm_dat["turbine_types"].values())
         type_names = list(farm_dat["turbine_types"].keys())
 
     turbines = []
@@ -227,7 +239,6 @@ def dict_to_site(resource_dict):
         # This is required for XRSite's linear interpolation, which expects the turbine index
         # as the leading dimension.
         resource_ds = resource_ds.transpose("i", *other_dims)
-    print("making site with ", resource_ds)
     return XRSite(resource_ds)
 
 
@@ -263,67 +274,48 @@ def construct_site(system_dat, resource_dat, hub_heights, x_positions):
         dict with keys: site, ws, wd, TI, timeseries, operating, additional_heights,
                        cases_idx, flow_bounds
     """
-    from py_wake.examples.data.hornsrev1 import Hornsrev1Site
-    from py_wake.site import XRSite
-    from windIO import dict_to_netcdf
-
-    # Get flow field bounds from config or site boundaries
-    boundaries = system_dat["site"]["boundaries"]["polygons"][0]
-    WFXLB = np.min(boundaries["x"])
-    WFXUB = np.max(boundaries["x"])
-    WFYLB = np.min(boundaries["y"])
-    WFYUB = np.max(boundaries["y"])
-
-    # Override with explicit flow field bounds if specified
-    WFXLB = get_flow_field_param(system_dat, "xlb", WFXLB)
-    WFXUB = get_flow_field_param(system_dat, "xub", WFXUB)
-    WFYLB = get_flow_field_param(system_dat, "ylb", WFYLB)
-    WFYUB = get_flow_field_param(system_dat, "yub", WFYUB)
-    WFDX = get_flow_field_param(system_dat, "dx", (WFXUB - WFXLB) / 100)
-    WFDY = get_flow_field_param(system_dat, "dy", (WFYUB - WFYLB) / 100)
-
-    flow_bounds = {
-        "xlb": WFXLB,
-        "xub": WFXUB,
-        "ylb": WFYLB,
-        "yub": WFYUB,
-        "dx": WFDX,
-        "dy": WFDY,
-    }
+    # Compute flow field bounds from site boundaries, with optional overrides
+    flow_bounds = _compute_flow_bounds(system_dat)
 
     # Determine site type and construct accordingly
-    if "time" in resource_dat["wind_resource"]:
-        # Timeseries site
+    wind_resource = resource_dat["wind_resource"]
+    if "time" in wind_resource:
         result = _construct_timeseries_site(
             system_dat, resource_dat, hub_heights, x_positions
         )
-        result["flow_bounds"] = flow_bounds
-        return result
-
-    elif "weibull_k" in resource_dat["wind_resource"]:
-        # Weibull distribution site
+    elif "weibull_k" in wind_resource:
         result = _construct_weibull_site(resource_dat, hub_heights, x_positions)
-        result["flow_bounds"] = flow_bounds
-        return result
-
     else:
-        # Simple probability-based site
-        ws = resource_dat["wind_resource"]["wind_speed"]
-        wd = resource_dat["wind_resource"]["wind_direction"]
-        site = dict_to_site(resource_dat["wind_resource"])
-        TI = resource_dat["wind_resource"]["turbulence_intensity"]["data"]
-
-        return {
-            "site": site,
-            "ws": ws,
-            "wd": wd,
-            "TI": TI,
+        result = {
+            "site": dict_to_site(wind_resource),
+            "ws": wind_resource["wind_speed"],
+            "wd": wind_resource["wind_direction"],
+            "TI": wind_resource["turbulence_intensity"]["data"],
             "timeseries": False,
             "operating": np.ones((len(x_positions), 1)),
             "additional_heights": [],
             "cases_idx": np.ones(1).astype(bool),
-            "flow_bounds": flow_bounds,
         }
+
+    result["flow_bounds"] = flow_bounds
+    return result
+
+
+def _compute_flow_bounds(system_dat):
+    """Compute flow field bounds from site boundaries with optional overrides."""
+    boundaries = system_dat["site"]["boundaries"]["polygons"][0]
+    xlb = get_flow_field_param(system_dat, "xlb", np.min(boundaries["x"]))
+    xub = get_flow_field_param(system_dat, "xub", np.max(boundaries["x"]))
+    ylb = get_flow_field_param(system_dat, "ylb", np.min(boundaries["y"]))
+    yub = get_flow_field_param(system_dat, "yub", np.max(boundaries["y"]))
+    return {
+        "xlb": xlb,
+        "xub": xub,
+        "ylb": ylb,
+        "yub": yub,
+        "dx": get_flow_field_param(system_dat, "dx", (xub - xlb) / 100),
+        "dy": get_flow_field_param(system_dat, "dy", (yub - ylb) / 100),
+    }
 
 
 def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_positions):
@@ -339,14 +331,14 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
     cases_idx = np.ones(len(times)).astype(bool)
 
     # Check for subset configuration
-    output_spec = system_dat["attributes"].get("model_outputs_specification", {})
-    if "run_configuration" in output_spec:
-        run_config = output_spec["run_configuration"]
-        if "times_run" in run_config and not run_config["times_run"].get(
-            "all_occurences", True
-        ):
-            if "subset" in run_config["times_run"]:
-                cases_idx = run_config["times_run"]["subset"]
+    times_run = (
+        system_dat["attributes"]
+        .get("model_outputs_specification", {})
+        .get("run_configuration", {})
+        .get("times_run", {})
+    )
+    if not times_run.get("all_occurences", True) and "subset" in times_run:
+        cases_idx = times_run["subset"]
 
     heights = wind_resource.get("height")
 
@@ -451,7 +443,6 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
             )
     else:
         # Single turbine type
-        print(np.array(ws).shape, np.array(heights).shape)
         if heights:
             ws, wd = _interpolate_wind_data(heights, ws, wd, hh)
 
@@ -598,27 +589,11 @@ def configure_wake_model(system_dat, rotor_diameter, hub_height):
                        turbulence_model, superposition_model, rotor_averaging,
                        blockage_model, solver_class, solver_args
     """
-    from py_wake.deficit_models import SelfSimilarityDeficit2020
-    from py_wake.deficit_models.fuga import FugaDeficit
-    from py_wake.deficit_models.gaussian import (
-        BastankhahGaussianDeficit,
-        BlondelSuperGaussianDeficit2020,
-        TurboGaussianDeficit,
-    )
-    from py_wake.deficit_models.noj import NOJLocalDeficit
-    from py_wake.deflection_models import JimenezWakeDeflection
-    from py_wake.rotor_avg_models import GridRotorAvg, RotorCenter
-    from py_wake.superposition_models import LinearSum, SquaredSum
-    from py_wake.turbulence_models import (
-        CrespoHernandez,
-        STF2005TurbulenceModel,
-        STF2017TurbulenceModel,
-    )
     from py_wake.wind_farm_models import All2AllIterative, PropagateDownwind
 
     analysis = system_dat["attributes"]["analysis"]
 
-    # Get model configurations with defaults
+    # Resolve each submodel config, filling missing keys from DEFAULTS
     wind_deficit_data = get_with_default(analysis, "wind_deficit_model", DEFAULTS)
     deflection_data = get_with_default(analysis, "deflection_model", DEFAULTS)
     turbulence_data = get_with_default(analysis, "turbulence_model", DEFAULTS)
@@ -626,35 +601,16 @@ def configure_wake_model(system_dat, rotor_diameter, hub_height):
     rotor_avg_data = get_with_default(analysis, "rotor_averaging", DEFAULTS)
     blockage_data = get_with_default(analysis, "blockage_model", DEFAULTS)
 
-    # Configure wind deficit model
-    deficit_args = {"use_effective_ws": True}
-    wake_deficit_key = None
-
-    print("Running deficit ", wind_deficit_data)
-
-    wake_model_class, deficit_args, wake_deficit_key = _configure_deficit_model(
-        wind_deficit_data, analysis, rotor_diameter, hub_height, deficit_args
+    wake_model_class, deficit_args = _configure_deficit_model(
+        wind_deficit_data, analysis, rotor_diameter, hub_height
     )
-
-    print("deficit args ", deficit_args)
-
-    # Configure deflection model
     deflection_model = _configure_deflection_model(deflection_data)
-
-    # Configure turbulence model
     turbulence_model = _configure_turbulence_model(turbulence_data)
-
-    # Configure superposition model
     superposition_model = _configure_superposition_model(superposition_data)
-    print("using superposition ", superposition_data)
-
-    # Configure rotor averaging
     rotor_averaging = _configure_rotor_averaging(rotor_avg_data)
-
-    # Configure blockage model
     blockage_model = _configure_blockage_model(blockage_data, deficit_args)
 
-    # Determine solver based on blockage
+    # Blockage requires All2AllIterative solver
     solver_args = {}
     if blockage_model is not None:
         solver_class = All2AllIterative
@@ -665,7 +621,7 @@ def configure_wake_model(system_dat, rotor_diameter, hub_height):
     return {
         "wake_model_class": wake_model_class,
         "deficit_args": deficit_args,
-        "wake_deficit_key": wake_deficit_key,
+        "wake_deficit_key": None,  # Deprecated: kept for API compatibility
         "deflection_model": deflection_model,
         "turbulence_model": turbulence_model,
         "superposition_model": superposition_model,
@@ -676,58 +632,105 @@ def configure_wake_model(system_dat, rotor_diameter, hub_height):
     }
 
 
-def _configure_deficit_model(
-    wind_deficit_data, analysis, rotor_diameter, hub_height, deficit_args
-):
+def _configure_deficit_model(wind_deficit_data, analysis, rotor_diameter, hub_height):
     """Configure the wind deficit model.
 
     Returns:
-        tuple: (wake_model_class, deficit_args, wake_deficit_key)
+        tuple: (wake_model_class, deficit_args)
     """
     from py_wake.deficit_models.fuga import FugaDeficit
     from py_wake.deficit_models.gaussian import (
         BastankhahGaussianDeficit,
         BlondelSuperGaussianDeficit2020,
+        BlondelSuperGaussianDeficit2023,
+        CarbajofuertesGaussianDeficit,
+        NiayifarGaussianDeficit,
         TurboGaussianDeficit,
+        ZongGaussianDeficit,
     )
-    from py_wake.deficit_models.noj import NOJLocalDeficit
+    from py_wake.deficit_models.gcl import GCLDeficit
+    from py_wake.deficit_models.noj import NOJLocalDeficit, TurboNOJDeficit
 
-    wake_deficit_key = None
     model_name = wind_deficit_data["name"]
+    normalized = _normalize_name(model_name)
+    deficit_args = {"use_effective_ws": True}
 
-    if model_name == "Jensen":
+    wind_deficit_cfg = analysis.get("wind_deficit_model", {})
+    wake_expansion = wind_deficit_cfg.get("wake_expansion_coefficient", {})
+
+    GAUSSIAN_MODELS = {
+        "bastankhah2014": BastankhahGaussianDeficit,
+        "niayifar2016": NiayifarGaussianDeficit,
+        "zong2020": ZongGaussianDeficit,
+        "carbajofuertes2018": CarbajofuertesGaussianDeficit,
+    }
+    # Models that accept a=[k_a, k_b] instead of k (scalar)
+    A_PARAM_MODELS = {"niayifar2016", "zong2020", "carbajofuertes2018"}
+
+    if normalized in ("jensen", "nojlocaldeficit"):
         wake_model_class = NOJLocalDeficit
-        wake_expansion = analysis.get("wind_deficit_model", {}).get(
-            "wake_expansion_coefficient", {}
-        )
         if "k_b" in wake_expansion:
-            k_a = wake_expansion.get("k_a", 0)
-            k_b = wake_expansion["k_b"]
-            deficit_args["a"] = [k_a, k_b]
+            deficit_args["a"] = [wake_expansion.get("k_a", 0), wake_expansion["k_b"]]
 
-    elif model_name.lower() == "bastankhah2014":
-        wake_model_class = BastankhahGaussianDeficit
-        wake_expansion = analysis.get("wind_deficit_model", {}).get(
-            "wake_expansion_coefficient", {}
-        )
-        if "k_b" in wake_expansion:
-            deficit_args["k"] = wake_expansion["k_b"]
-        elif "k" in wake_expansion:
-            deficit_args["k"] = wake_expansion["k"]
-        if "ceps" in analysis.get("wind_deficit_model", {}):
-            deficit_args["ceps"] = analysis["wind_deficit_model"]["ceps"]
+    elif normalized in GAUSSIAN_MODELS:
+        wake_model_class = GAUSSIAN_MODELS[normalized]
+        if normalized in A_PARAM_MODELS:
+            # Niayifar, Zong, Carbajofuertes use a=[k_a, k_b]
+            if "k" in wake_expansion:
+                warnings.warn(
+                    f"{model_name} uses a=[k_a, k_b] for wake expansion, not scalar k. "
+                    f"Scalar 'k' is ignored; specify k_a/k_b instead."
+                )
+            if "k_b" in wake_expansion:
+                if "k_a" not in wake_expansion:
+                    warnings.warn(
+                        f"k_a not specified for {model_name}, defaulting to 0"
+                    )
+                deficit_args["a"] = [
+                    wake_expansion.get("k_a", 0),
+                    wake_expansion["k_b"],
+                ]
+        else:
+            # Bastankhah2014 uses k (scalar)
+            if "k_b" in wake_expansion:
+                deficit_args["k"] = wake_expansion["k_b"]
+            elif "k" in wake_expansion:
+                deficit_args["k"] = wake_expansion["k"]
+        # ceps: valid for Bastankhah, Niayifar, Carbajofuertes (not Zong)
+        if normalized != "zong2020" and "ceps" in wind_deficit_cfg:
+            deficit_args["ceps"] = wind_deficit_cfg["ceps"]
+        # use_effective_ti: valid for Niayifar, Zong, Carbajofuertes (not Bastankhah)
+        if normalized != "bastankhah2014" and "use_effective_ti" in wind_deficit_cfg:
+            deficit_args["use_effective_ti"] = wind_deficit_cfg["use_effective_ti"]
 
-    elif model_name == "SuperGaussian":
+    elif normalized == "supergaussian":
         wake_model_class = BlondelSuperGaussianDeficit2020
 
-    elif model_name == "TurboPark":
+    elif normalized == "supergaussian2023":
+        wake_model_class = BlondelSuperGaussianDeficit2023
+
+    elif normalized == "turbopark":
         wake_model_class = TurboGaussianDeficit
 
-    elif model_name.upper() == "FUGA":
+    elif normalized == "turbonoj":
+        wake_model_class = TurboNOJDeficit
+        if "A" in wind_deficit_cfg:
+            deficit_args["A"] = wind_deficit_cfg["A"]
+
+    elif normalized == "gcl":
+        wake_model_class = GCLDeficit
+
+    elif normalized == "bastankhah2016":
+        raise NotImplementedError(
+            "Bastankhah2016 is not available in PyWake. Use flow_model 'foxes', "
+            "or choose Bastankhah2014/Zong2020 for PyWake."
+        )
+
+    elif normalized == "fuga":
         wake_model_class = FugaDeficit
         from pyfuga import get_luts
 
-        lut = get_luts(
+        get_luts(
             folder="luts",
             zeta0=0,
             nkz0=8,
@@ -751,28 +754,31 @@ def _configure_deficit_model(
     else:
         raise NotImplementedError(f"Wake model '{model_name}' is not supported")
 
-    # Handle k/k2 format conversion
-    if "k2" in deficit_args:
-        k = deficit_args.pop("k")
-        k2 = deficit_args.pop("k2")
-        deficit_args["a"] = [k2, k]
-
-    return wake_model_class, deficit_args, wake_deficit_key
+    return wake_model_class, deficit_args
 
 
 def _configure_deflection_model(deflection_data):
     """Configure the wake deflection model."""
     from py_wake.deflection_models import JimenezWakeDeflection
+    from py_wake.deflection_models.gcl_hill_vortex import GCLHillDeflection
 
-    name = deflection_data["name"].lower()
-    if name == "none":
+    name = deflection_data.get("name")
+    if name is None:
         return None
-    elif name == "jimenez":
+
+    normalized = _normalize_name(name)
+    if normalized == "none":
+        return None
+    if normalized == "jimenez":
         return JimenezWakeDeflection(beta=deflection_data["beta"])
-    else:
+    if normalized == "gclhill":
+        return GCLHillDeflection()
+    if normalized == "bastankhah2016":
         raise NotImplementedError(
-            f"Deflection model '{deflection_data['name']}' is not supported"
+            "Bastankhah2016 deflection is not available in PyWake. Use flow_model "
+            "'foxes', or choose Jimenez/GCLHill for PyWake."
         )
+    raise NotImplementedError(f"Deflection model '{name}' is not supported")
 
 
 def _configure_turbulence_model(turbulence_data):
@@ -782,67 +788,132 @@ def _configure_turbulence_model(turbulence_data):
         STF2005TurbulenceModel,
         STF2017TurbulenceModel,
     )
+    from py_wake.turbulence_models.gcl_turb import GCLTurbulence
 
-    name = turbulence_data["name"].upper()
-    if turbulence_data["name"].lower() == "none":
+    name = turbulence_data.get("name")
+    if name is None:
         return None
-    elif name == "STF2005":
-        return STF2005TurbulenceModel(c=[turbulence_data["c1"], turbulence_data["c2"]])
-    elif name == "STF2017":
-        return STF2017TurbulenceModel(c=[turbulence_data["c1"], turbulence_data["c2"]])
-    elif name == "CRESPOHERNANDEZ":
+
+    normalized = _normalize_name(name)
+    if normalized == "none":
+        return None
+
+    STF_MODELS = {
+        "stf2005": STF2005TurbulenceModel,
+        "stf2017": STF2017TurbulenceModel,
+        "iecti2019": STF2017TurbulenceModel,
+    }
+
+    if normalized in STF_MODELS:
+        c = [turbulence_data.get("c1", 1.0), turbulence_data.get("c2", 1.0)]
+        return STF_MODELS[normalized](c=c)
+    if normalized == "crespohernandez":
         return CrespoHernandez()
-    else:
-        raise NotImplementedError(
-            f"Turbulence model '{turbulence_data['name']}' is not supported"
-        )
+    if normalized == "gcl":
+        return GCLTurbulence()
+    raise NotImplementedError(f"Turbulence model '{name}' is not supported")
 
 
 def _configure_superposition_model(superposition_data):
     """Configure the superposition model."""
-    from py_wake.superposition_models import LinearSum, SquaredSum
+    from py_wake.superposition_models import (
+        CumulativeWakeSum,
+        LinearSum,
+        MaxSum,
+        SquaredSum,
+        WeightedSum,
+    )
 
-    name = superposition_data["ws_superposition"].lower()
-    if name == "linear":
-        return LinearSum()
-    elif name == "squared":
-        return SquaredSum()
-    else:
-        raise NotImplementedError(
-            f"Superposition model '{superposition_data['ws_superposition']}' is not supported"
-        )
+    name = superposition_data["ws_superposition"]
+    normalized = _normalize_name(name)
+
+    SUPERPOSITION_MODELS = {
+        "linear": LinearSum,
+        "squared": SquaredSum,
+        "max": MaxSum,
+        "weighted": WeightedSum,
+        "cumulative": CumulativeWakeSum,
+    }
+
+    if normalized in SUPERPOSITION_MODELS:
+        return SUPERPOSITION_MODELS[normalized]()
+    if normalized == "product":
+        raise NotImplementedError("Product superposition is not available in PyWake.")
+    raise NotImplementedError(f"Superposition model '{name}' is not supported")
 
 
 def _configure_rotor_averaging(rotor_avg_data):
     """Configure the rotor averaging model."""
-    from py_wake.rotor_avg_models import GridRotorAvg, RotorCenter
+    from py_wake.rotor_avg_models import (
+        CGIRotorAvg,
+        EqGridRotorAvg,
+        GQGridRotorAvg,
+        GridRotorAvg,
+        PolarGridRotorAvg,
+        RotorCenter,
+    )
 
-    name = rotor_avg_data["name"].lower()
-    if name == "center":
-        print("Using Center Average")
+    name = rotor_avg_data["name"]
+    normalized = _normalize_name(name)
+
+    if normalized == "center":
         return RotorCenter()
-    elif name == "avg_deficit":
+    if normalized == "avgdeficit":
         return GridRotorAvg()
-    else:
-        raise NotImplementedError(
-            f"Rotor averaging model '{rotor_avg_data['name']}' is not supported"
+    if normalized == "eqgrid":
+        return EqGridRotorAvg(n=rotor_avg_data.get("n", 4))
+    if normalized == "gqgrid":
+        return GQGridRotorAvg(
+            n_x=rotor_avg_data.get("n_x_grid_points", 4),
+            n_y=rotor_avg_data.get("n_y_grid_points", 4),
         )
+    if normalized == "polargrid":
+        return PolarGridRotorAvg()
+    if normalized == "cgi":
+        return CGIRotorAvg(n=rotor_avg_data.get("n", 4))
+    raise NotImplementedError(f"Rotor averaging model '{name}' is not supported")
 
 
 def _configure_blockage_model(blockage_data, deficit_args):
     """Configure the blockage model."""
-    from py_wake.deficit_models import SelfSimilarityDeficit2020
+    from py_wake.deficit_models import (
+        HybridInduction,
+        RankineHalfBody,
+        SelfSimilarityDeficit,
+        SelfSimilarityDeficit2020,
+        VortexCylinder,
+        VortexDipole,
+    )
     from py_wake.deficit_models.fuga import FugaDeficit
+    from py_wake.deficit_models.rathmann import Rathmann
 
     name = blockage_data["name"]
-    if name == "None" or name is None:
+    if name is None:
         return None
-    elif name == "SelfSimilarityDeficit2020":
-        return SelfSimilarityDeficit2020(ss_alpha=blockage_data["ss_alpha"])
-    elif name.upper() == "FUGA":
+
+    normalized = _normalize_name(name)
+    if normalized == "none":
+        return None
+
+    # Models that take no constructor arguments
+    SIMPLE_BLOCKAGE_MODELS = {
+        "selfsimilaritydeficit": SelfSimilarityDeficit,
+        "rankinehalfbody": RankineHalfBody,
+        "rathmann": Rathmann,
+        "vortexcylinder": VortexCylinder,
+        "vortexdipole": VortexDipole,
+        "hybridinduction": HybridInduction,
+    }
+
+    if normalized == "selfsimilaritydeficit2020":
+        return SelfSimilarityDeficit2020(
+            ss_alpha=blockage_data.get("ss_alpha", 0.8888888888888888)
+        )
+    if normalized in SIMPLE_BLOCKAGE_MODELS:
+        return SIMPLE_BLOCKAGE_MODELS[normalized]()
+    if normalized == "fuga":
         return FugaDeficit(deficit_args["LUT_path"])
-    else:
-        raise ValueError(f"Unknown blockage model: {name}")
+    raise NotImplementedError(f"Blockage model '{name}' is not supported")
 
 
 def run_simulation(site, turbine, wake_config, site_data, x, y, turbine_types):
@@ -861,15 +932,11 @@ def run_simulation(site, turbine, wake_config, site_data, x, y, turbine_types):
         dict with keys: sim_res, aep, aep_per_turbine
     """
     # Build deficit model
-    print("Running ", wake_config["wake_model_class"], wake_config["deficit_args"])
     deficit_model = wake_config["wake_model_class"](
         rotorAvgModel=wake_config["rotor_averaging"],
         groundModel=None,
         **wake_config["deficit_args"],
     )
-
-    if wake_config["wake_deficit_key"]:
-        deficit_model.WS_key = wake_config["wake_deficit_key"]
 
     # Build wind farm model
     wind_farm_model = wake_config["solver_class"](
@@ -901,20 +968,10 @@ def run_simulation(site, turbine, wake_config, site_data, x, y, turbine_types):
 
     # Run simulation
     sim_res = wind_farm_model(**sim_kwargs)
-    aep = sim_res.aep(normalize_probabilities=not site_data["timeseries"]).sum()
-    print("aep is ", aep, "GWh")
-
-    # Calculate per-turbine AEP
-    if site_data["timeseries"]:
-        aep_per_turbine = (
-            sim_res.aep(normalize_probabilities=True).sum(["time"]).to_numpy()
-        )
-    else:
-        aep_per_turbine = (
-            sim_res.aep(normalize_probabilities=True).sum(["ws", "wd"]).to_numpy()
-        )
-
-    print(sim_res)
+    is_timeseries = site_data["timeseries"]
+    aep = sim_res.aep(normalize_probabilities=not is_timeseries).sum()
+    sum_dims = ["time"] if is_timeseries else ["ws", "wd"]
+    aep_per_turbine = sim_res.aep(normalize_probabilities=True).sum(sum_dims).to_numpy()
 
     return {"sim_res": sim_res, "aep": aep, "aep_per_turbine": aep_per_turbine}
 
@@ -934,9 +991,8 @@ def generate_outputs(sim_results, system_dat, site_data, hub_heights, output_dir
     """
     sim_res = sim_results["sim_res"]
     flow_bounds = site_data["flow_bounds"]
-
-    # Ensure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
     # Write turbine outputs if requested
     output_spec = system_dat["attributes"].get("model_outputs_specification", {})
@@ -944,20 +1000,17 @@ def generate_outputs(sim_results, system_dat, site_data, hub_heights, output_dir
         sim_res_formatted = sim_res[["Power", "WS_eff"]].rename(
             {"Power": "power", "WS_eff": "effective_wind_speed", "wt": "turbine"}
         )
-        turbine_nc_filename = str(
-            output_spec.get("turbine_outputs", {}).get(
-                "turbine_nc_filename", "PowerTable.nc"
-            )
+        turbine_nc_filename = output_spec["turbine_outputs"].get(
+            "turbine_nc_filename", "PowerTable.nc"
         )
-        turbine_nc_filepath = Path(output_dir) / turbine_nc_filename
-        sim_res_formatted.to_netcdf(turbine_nc_filepath)
+        sim_res_formatted.to_netcdf(output_path / turbine_nc_filename)
 
     # Flow field handling
     flow_map = _generate_flow_field(
         sim_res, system_dat, site_data, hub_heights, flow_bounds
     )
 
-    if flow_map:
+    if flow_map is not None:
         flow_map = flow_map[["WS_eff", "TI_eff"]].rename(
             {
                 "h": "z",
@@ -965,7 +1018,7 @@ def generate_outputs(sim_results, system_dat, site_data, hub_heights, output_dir
                 "TI_eff": "turbulence_intensity",
             }
         )
-        flow_map.to_netcdf(Path(output_dir) / "FarmFlow.nc")
+        flow_map.to_netcdf(output_path / "FarmFlow.nc")
 
     # Write YAML output
     _write_yaml_output(output_dir)
@@ -980,70 +1033,52 @@ def _generate_flow_field(sim_res, system_dat, site_data, hub_heights, flow_bound
         Flow map xarray or None
     """
     output_spec = system_dat["attributes"].get("model_outputs_specification", {})
-    timeseries = site_data["timeseries"]
+    if "flow_field" not in output_spec:
+        return None
 
-    WFXLB, WFXUB = flow_bounds["xlb"], flow_bounds["xub"]
-    WFYLB, WFYUB = flow_bounds["ylb"], flow_bounds["yub"]
-    WFDX, WFDY = flow_bounds["dx"], flow_bounds["dy"]
+    x_range = np.arange(
+        flow_bounds["xlb"], flow_bounds["xub"] + flow_bounds["dx"], flow_bounds["dx"]
+    )
+    y_range = np.arange(
+        flow_bounds["ylb"], flow_bounds["yub"] + flow_bounds["dy"], flow_bounds["dy"]
+    )
 
-    flow_map = None
-
-    if "flow_field" in output_spec and not timeseries:
+    if not site_data["timeseries"]:
         flow_map = sim_res.flow_box(
-            x=np.arange(WFXLB, WFXUB + WFDX, WFDX),
-            y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
+            x=x_range,
+            y=y_range,
             h=list(hub_heights.values()),
         )
-
         # Warn if user requests unsupported outputs
         requested_vars = output_spec["flow_field"].get("output_variables", [])
-        if any(
-            var not in ["velocity_u", "turbulence_intensity"] for var in requested_vars
-        ):
+        unsupported = {"velocity_u", "turbulence_intensity"}
+        if any(var not in unsupported for var in requested_vars):
             warnings.warn("PyWake can only output velocity_u and turbulence_intensity")
+        return flow_map
 
-    elif "flow_field" in output_spec and timeseries:
-        flow_field_spec = output_spec["flow_field"]
-        if flow_field_spec.get("report") is not False:
-            z_list = flow_field_spec.get("z_list", sorted(list(hub_heights.values())))
-            flow_map = sim_res.flow_box(
-                x=np.arange(WFXLB, WFXUB + WFDX, WFDX),
-                y=np.arange(WFYLB, WFYUB + WFDY, WFDY),
-                h=z_list,
-                time=sim_res.time.values,
-            )
+    # Timeseries flow field
+    flow_field_spec = output_spec["flow_field"]
+    if flow_field_spec.get("report") is False:
+        return None
 
-    return flow_map
+    z_list = flow_field_spec.get("z_list", sorted(hub_heights.values()))
+    return sim_res.flow_box(
+        x=x_range,
+        y=y_range,
+        h=z_list,
+        time=sim_res.time.values,
+    )
 
 
 def _write_yaml_output(output_dir):
     """Write the output YAML file with include directives."""
-    data = {
-        "wind_energy_system": "INCLUDE_YAML_PLACEHOLDER",
-        "power_table": "INCLUDE_POWER_TABLE_PLACEHOLDER",
-        "flow_field": "INCLUDE_FLOW_FIELD_PLACEHOLDER",
-    }
-
-    output_yaml_name = Path(output_dir) / "output.yaml"
-    with open(output_yaml_name, "w") as file:
-        yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
-
-    # Replace placeholders with include directives
-    with open(output_yaml_name, "r") as file:
-        yaml_content = file.read()
-
-    yaml_content = yaml_content.replace(
-        "INCLUDE_YAML_PLACEHOLDER", "!include recorded_inputs.yaml"
+    # Write directly with !include tags (avoids round-trip through yaml.dump)
+    content = (
+        "flow_field: !include FarmFlow.nc\n"
+        "power_table: !include PowerTable.nc\n"
+        "wind_energy_system: !include recorded_inputs.yaml\n"
     )
-    yaml_content = yaml_content.replace(
-        "INCLUDE_POWER_TABLE_PLACEHOLDER", "!include PowerTable.nc"
-    )
-    yaml_content = yaml_content.replace(
-        "INCLUDE_FLOW_FIELD_PLACEHOLDER", "!include FarmFlow.nc"
-    )
-
-    with open(output_yaml_name, "w") as file:
-        file.write(yaml_content)
+    (Path(output_dir) / "output.yaml").write_text(content)
 
 
 def run_pywake(yaml_input, output_dir="output"):
