@@ -227,6 +227,10 @@ def dict_to_site(resource_dict):
         if name in resource_ds:
             resource_ds = resource_ds.rename({name: rename_map[name]})
 
+    if "time" in resource_ds.dims:
+        # Convert time coordinate to integer indices for GridInterpolator compatibility
+        # (string or datetime time coords cannot be interpolated numerically)
+        resource_ds = resource_ds.assign_coords(time=np.arange(len(resource_ds.time)))
     if "P" not in resource_ds and "time" in resource_ds.dims:
         n_time = len(resource_ds.time)
         # Create uniform probability array (1/N)
