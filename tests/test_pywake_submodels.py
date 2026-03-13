@@ -26,7 +26,7 @@ from py_wake.deficit_models.gaussian import (
     ZongGaussianDeficit,
 )
 from py_wake.deficit_models.gcl import GCLDeficit
-from py_wake.deficit_models.noj import NOJLocalDeficit, TurboNOJDeficit
+from py_wake.deficit_models.noj import NOJDeficit, NOJLocalDeficit, TurboNOJDeficit
 from py_wake.deficit_models.rathmann import Rathmann
 from py_wake.deflection_models import JimenezWakeDeflection
 from py_wake.deflection_models.gcl_hill_vortex import GCLHillDeflection
@@ -109,6 +109,12 @@ def _call_deficit(name, analysis_extra=None):
         ("NOJLocalDeficit", NOJLocalDeficit),
         ("nojlocaldeficit", NOJLocalDeficit),
         ("NOJLOCALDEFICIT", NOJLocalDeficit),
+        ("Jensen_1983", NOJDeficit),
+        ("jensen_1983", NOJDeficit),
+        ("JENSEN_1983", NOJDeficit),
+        ("NOJDeficit", NOJDeficit),
+        ("nojdeficit", NOJDeficit),
+        ("NOJDEFICIT", NOJDeficit),
     ],
 )
 def test_configure_deficit_model(name, expected_class):
@@ -130,6 +136,8 @@ def test_configure_deficit_model(name, expected_class):
         ("TurboNOJ", TurboNOJDeficit),
         ("GCL", GCLDeficit),
         ("NOJLocalDeficit", NOJLocalDeficit),
+        ("Jensen_1983", NOJDeficit),
+        ("NOJDeficit", NOJDeficit),
     ],
 )
 def test_configure_deficit_model_instantiation(name, expected_class):
@@ -175,6 +183,17 @@ def test_configure_deficit_model_nojlocaldeficit_k_b():
         {"wake_expansion_coefficient": {"k_a": 0.38, "k_b": 0.004}},
     )
     assert args["a"] == [0.38, 0.004]
+
+
+def test_configure_deficit_model_jensen_1983_k():
+    """Verify Jensen_1983 passes scalar k and does not pass use_effective_ws."""
+    cls, args = _call_deficit(
+        "Jensen_1983",
+        {"wake_expansion_coefficient": {"k": 0.04}},
+    )
+    assert cls is NOJDeficit
+    assert args["k"] == 0.04
+    assert "use_effective_ws" not in args
 
 
 def test_configure_deficit_model_gaussian_params_niayifar():
@@ -259,6 +278,11 @@ def test_configure_deficit_model_a_param_warns_on_missing_k_a():
             "NOJLocalDeficit",
             {"wake_expansion_coefficient": {"k_a": 0.38, "k_b": 0.004}},
             NOJLocalDeficit,
+        ),
+        (
+            "Jensen_1983",
+            {"wake_expansion_coefficient": {"k": 0.04}},
+            NOJDeficit,
         ),
     ],
 )
