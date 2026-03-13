@@ -647,7 +647,7 @@ def _configure_deficit_model(wind_deficit_data, analysis, rotor_diameter, hub_he
         ZongGaussianDeficit,
     )
     from py_wake.deficit_models.gcl import GCLDeficit
-    from py_wake.deficit_models.noj import NOJLocalDeficit, TurboNOJDeficit
+    from py_wake.deficit_models.noj import NOJDeficit, NOJLocalDeficit, TurboNOJDeficit
 
     model_name = wind_deficit_data["name"]
     normalized = _normalize_name(model_name)
@@ -669,6 +669,12 @@ def _configure_deficit_model(wind_deficit_data, analysis, rotor_diameter, hub_he
         wake_model_class = NOJLocalDeficit
         if "k_b" in wake_expansion:
             deficit_args["a"] = [wake_expansion.get("k_a", 0), wake_expansion["k_b"]]
+
+    elif normalized in ("jensen1983", "nojdeficit"):
+        wake_model_class = NOJDeficit
+        deficit_args.pop("use_effective_ws", None)
+        if "k" in wake_expansion:
+            deficit_args["k"] = wake_expansion["k"]
 
     elif normalized in GAUSSIAN_MODELS:
         wake_model_class = GAUSSIAN_MODELS[normalized]
