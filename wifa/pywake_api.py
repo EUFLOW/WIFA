@@ -112,8 +112,10 @@ def create_turbines(farm_dat):
     """
     from py_wake.wind_turbines import WindTurbine, WindTurbines
     from py_wake.wind_turbines.power_ct_functions import (
+        DensityCompensation,
         PowerCtFunctionList,
         PowerCtTabular,
+        SimpleYawModel,
     )
 
     # Handle single vs multiple turbine types
@@ -160,11 +162,18 @@ def create_turbines(farm_dat):
         cutin = turbine_dat["performance"].get("cutin_wind_speed", 0)
         cutout = turbine_dat["performance"].get("cutout_wind_speed")
 
+        # Use DensityCompensation (wind speed correction before lookup) to
+        # match foxes' air density handling: ws *= (rho/rho_ref)^(1/3)
+        density_models = [SimpleYawModel(exp=2), DensityCompensation(1.225)]
+
         this_turbine = WindTurbine(
             name=turbine_dat["name"],
             diameter=rd,
             hub_height=hh,
-            powerCtFunction=PowerCtTabular(speeds, powers, power_unit="W", ct=cts_int),
+            powerCtFunction=PowerCtTabular(
+                speeds, powers, power_unit="W", ct=cts_int,
+                additional_models=density_models,
+            ),
             ws_cutin=cutin,
             ws_cutout=cutout,
         )
