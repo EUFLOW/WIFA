@@ -38,17 +38,27 @@ classifiers = [
 ]
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "py_wake>=2.6.5",
-    "foxes>=1.6.2",
-    "windIO @ git+https://github.com/EUFlow/windIO.git",
-    "floris @ git+https://github.com/lejeunemax/floris.git",
-    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve",
-    "numpy>=1.22,<3.0",
-    "xarray>=2022.0.0,<2025",
-    "mpmath",
+    "windIO @ git+https://github.com/bjarketol/windIO.git@expand-pywake-submodel-schema",
+    "xarray",
+    "scipy",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
+py_wake = ["py_wake>=2.6.5"]
+foxes = ["foxes>=1.6.2"]
+floris = ["floris @ git+https://github.com/lejeunemax/floris.git"]
+wayve = [
+    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve",
+    "mpmath",
+]
+cs = []  # code_saturne is a subprocess, no pip dependency
+all = [
+    "wifa[py_wake]",
+    "wifa[foxes]",
+    "wifa[floris]",
+    "wifa[wayve]",
+]
 test = [
     "pytest",
     "pytest-cov",
@@ -60,6 +70,7 @@ dev = [
     "ncplot",
     "nctoolkit",
     "cartopy",
+    "pre-commit",
 ]
 docs = [
     "sphinx>=7.0",
