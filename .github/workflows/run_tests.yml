@@ -40,7 +40,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         enable-cache: true
-    - run: uv sync --extra test
+    - run: uv sync --extra all --extra test
     - run: uv run pytest --durations=0 tests/
     - name: Minimize uv cache
       run: uv cache prune --ci
