@@ -490,27 +490,40 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
     }
 
 
-def _construct_weibull_site(resource_dat, hub_heights, x_positions):
+def _construct_weibull_site(resource_dat, hub_heights, x_positions, n_subsector=5):
     """Construct site from Weibull distribution data.
 
     Internal helper for construct_site().
+
+    Parameters
+    ----------
+    resource_dat : dict
+        Energy resource dictionary from windIO.
+    hub_heights : dict
+        Mapping of turbine type names to hub heights.
+    x_positions : list
+        Turbine x positions (for operating array sizing).
+    n_subsector : int
+        Number of sub-directions per wind direction sector.  Higher values
+        smooth directional wake effects.  Default 5 (matching pywasp).
     """
     from windIO import dict_to_netcdf
 
     wind_resource = resource_dat["wind_resource"]
     A = wind_resource["weibull_a"]
     k = wind_resource["weibull_k"]
-    wd = wind_resource["wind_direction"]
-    ws = wind_resource.get("wind_speed", np.arange(2, 30, 1))
+    wd_raw = wind_resource["wind_direction"]
 
+    # --- Speedup computation ------------------------------------------------
     # Handle turbine-specific Weibull
     if "wind_turbine" in wind_resource["sector_probability"]["dims"]:
         mean_ws = np.array(A["data"]) * gamma(1 + 1.0 / np.array(k["data"]))
-        max_mean = np.max(mean_ws, axis=0)
+        wt_axis = list(A["dims"]).index("wind_turbine")
+        max_mean = np.max(mean_ws, axis=wt_axis, keepdims=True)
         Speedup = mean_ws / max_mean
         wind_resource["Speedup"] = {
-            "dims": ["wind_turbine", "wd"],
-            "data": Speedup,
+            "dims": list(A["dims"]),
+            "data": Speedup.tolist(),
         }
 
     # Handle spatial Weibull
@@ -523,21 +536,69 @@ def _construct_weibull_site(resource_dat, hub_heights, x_positions):
             "data": Speedup,
         }
 
+    # --- Flow case computation -----------------------------------------------
+    # When wind_speed is absent from the windIO dict, WIFA computes optimal
+    # flow cases: a Speedup-adjusted ws range and sub-sector wd values.
+    # When wind_speed IS present, the user has chosen explicit flow cases
+    # and both ws and wd are used as-is.
+    ws = wind_resource.get("wind_speed", None)
+    if ws is None:
+        # -- Wind speed range from Weibull + Speedup --------------------------
+        A_arr = np.asarray(A["data"], dtype=float)
+        k_arr = np.asarray(k["data"], dtype=float)
+        # Weibull inverse CDF at 99.9 %: ws = A * (-ln(0.001))^(1/k)
+        ws_999 = A_arr * (-np.log(0.001)) ** (1.0 / k_arr)
+        ws_max_local = float(np.max(ws_999))
+        # Extend for speed-downs so the reference WS grid covers every
+        # turbine's distribution after Speedup scaling
+        if "Speedup" in wind_resource:
+            min_speedup = float(np.min(wind_resource["Speedup"]["data"]))
+            ws_max_ref = ws_max_local / max(min_speedup, 0.1)
+        else:
+            ws_max_ref = ws_max_local
+        ws = np.arange(0, np.ceil(ws_max_ref) + 0.5, 0.5)
+
+        # -- Wind direction sub-sectors ---------------------------------------
+        # Strip 360° wrap-around before computing sub-sectors
+        wd_sectors = np.asarray(wd_raw, dtype=float)
+        if len(wd_sectors) > 1 and np.isclose(wd_sectors[-1], 360.0):
+            wd_sectors = wd_sectors[:-1]
+        if n_subsector > 1 and len(wd_sectors) >= 4:
+            n_sectors = len(wd_sectors)
+            sector_width = 360.0 / n_sectors
+            subsector_width = sector_width / n_subsector
+            offsets = np.linspace(
+                -sector_width / 2 + subsector_width / 2,
+                sector_width / 2 - subsector_width / 2,
+                n_subsector,
+            )
+            wd = np.sort(
+                (wd_sectors[:, np.newaxis] + offsets[np.newaxis, :]).ravel() % 360
+            )
+        else:
+            wd = wd_sectors
+    else:
+        # Explicit wind_speed provided: use original wd as-is
+        wd = wd_raw
+
+    # --- Site and TI --------------------------------------------------------
     site = dict_to_site(wind_resource)
 
-    # Handle TI
-    site_ds = dict_to_netcdf(wind_resource)
-    if "x" in site_ds.turbulence_intensity.dims:
-        interpolated_ti = site_ds.turbulence_intensity.interp(
-            x=x_positions, y=x_positions
-        )
-        if "height" in interpolated_ti.dims:
-            interpolated_ti = interpolated_ti.interp(height=hub_heights["0"])
-        TI = np.array(
-            [interpolated_ti.isel(x=i, y=i).values for i in range(len(x_positions))]
-        )
+    if "turbulence_intensity" in wind_resource:
+        site_ds = dict_to_netcdf(wind_resource)
+        if "x" in site_ds.turbulence_intensity.dims:
+            interpolated_ti = site_ds.turbulence_intensity.interp(
+                x=x_positions, y=x_positions
+            )
+            if "height" in interpolated_ti.dims:
+                interpolated_ti = interpolated_ti.interp(height=hub_heights["0"])
+            TI = np.array(
+                [interpolated_ti.isel(x=i, y=i).values for i in range(len(x_positions))]
+            )
+        else:
+            TI = wind_resource["turbulence_intensity"]["data"]
     else:
-        TI = wind_resource["turbulence_intensity"]["data"]
+        TI = 0.06  # default when TI is absent from wind resource
 
     return {
         "site": site,
