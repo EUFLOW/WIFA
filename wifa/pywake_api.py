@@ -166,7 +166,11 @@ def create_turbines(farm_dat):
 
         # Use DensityCompensation (wind speed correction before lookup) to
         # match foxes' air density handling: ws *= (rho/rho_ref)^(1/3)
-        density_models = [SimpleYawModel(exp=2), DensityCompensation(1.225)]
+        try:
+            yaw_model = SimpleYawModel(exp=2)  # PyWake < 2.6
+        except TypeError:
+            yaw_model = SimpleYawModel()  # PyWake >= 2.6
+        density_models = [yaw_model, DensityCompensation(1.225)]
 
         this_turbine = WindTurbine(
             name=turbine_dat["name"],
