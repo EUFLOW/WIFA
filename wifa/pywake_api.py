@@ -9,8 +9,6 @@ from scipy.special import gamma
 
 from wifa._optional import require
 
-from wifa._optional import require
-
 # Define default values for wind_deficit_model parameters
 
 
@@ -177,7 +175,10 @@ def create_turbines(farm_dat):
             diameter=rd,
             hub_height=hh,
             powerCtFunction=PowerCtTabular(
-                speeds, powers, power_unit="W", ct=cts_int,
+                speeds,
+                powers,
+                power_unit="W",
+                ct=cts_int,
                 additional_models=density_models,
             ),
             ws_cutin=cutin,

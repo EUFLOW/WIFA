@@ -290,14 +290,12 @@ def test_heterogeneous_wind_rose_grid():
     sw = 360.0 / len(wd_sectors)
     ssw = sw / n_sub
     offsets = np.linspace(-sw / 2 + ssw / 2, sw / 2 - ssw / 2, n_sub)
-    wd_fine = np.sort((wd_sectors[:, np.newaxis] + offsets[np.newaxis, :]).ravel() % 360)
+    wd_fine = np.sort(
+        (wd_sectors[:, np.newaxis] + offsets[np.newaxis, :]).ravel() % 360
+    )
 
     # compute AEP with PyWake
-    res_aep = (
-        wfm(x, y, ws=ws_range, wd=wd_fine)
-        .aep(normalize_probabilities=True)
-        .sum()
-    )
+    res_aep = wfm(x, y, ws=ws_range, wd=wd_fine).aep(normalize_probabilities=True).sum()
 
     # compute AEP with API
     wifa_res = run_pywake(
@@ -509,10 +507,10 @@ def test_weibull_speedup_dim_ordering(tmp_path):
     # Per-turbine, per-sector Weibull A — turbine 3 is windiest
     # Shape: (wind_direction, wind_turbine) = (4, 4)
     A_data = [
-        [7.0, 8.0, 9.0, 10.0],   # sector 0°
-        [6.5, 7.5, 8.5, 9.5],    # sector 90°
+        [7.0, 8.0, 9.0, 10.0],  # sector 0°
+        [6.5, 7.5, 8.5, 9.5],  # sector 90°
         [8.0, 9.0, 10.0, 11.0],  # sector 180°
-        [6.0, 7.0, 8.0, 9.0],    # sector 270°
+        [6.0, 7.0, 8.0, 9.0],  # sector 270°
     ]
     k_data = [[2.0] * n_wt] * n_wd
     freq_data = [[1.0 / n_wd] * n_wt] * n_wd
