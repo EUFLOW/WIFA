@@ -9,8 +9,6 @@ from scipy.special import gamma
 
 from wifa._optional import require
 
-from wifa._optional import require
-
 # Define default values for wind_deficit_model parameters
 
 
