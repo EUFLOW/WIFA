@@ -39,7 +39,7 @@ classifiers = [
 requires-python = ">=3.10,<3.13"
 dependencies = [
     "windIO @ git+https://github.com/EUFlow/windIO.git",
-    "xarray>=2022.0.0,<2025",
+    "xarray",
     "scipy",
     "pyyaml",
 ]
