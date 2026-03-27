@@ -38,8 +38,8 @@ classifiers = [
 ]
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "windIO @ git+https://github.com/EUFlow/windIO.git",
-    "xarray>=2022.0.0,<2025",
+    "windIO @ git+https://github.com/bjarketol/windIO.git@expand-pywake-submodel-schema",
+    "xarray",
     "scipy",
     "pyyaml",
 ]
@@ -70,6 +70,7 @@ dev = [
     "ncplot",
     "nctoolkit",
     "cartopy",
+    "pre-commit",
 ]
 docs = [
     "sphinx>=7.0",

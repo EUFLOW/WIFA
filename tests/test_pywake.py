@@ -274,12 +274,28 @@ def test_heterogeneous_wind_rose_grid():
     x = [0, 1248.1, 2496.2, 3744.3]
     y = [0, 0, 0, 0]
 
-    # compute AEP with PyWake
-    res_aep = (
-        wfm(x, y, ws=np.arange(2, 30, 1), wd=dat["wd"])
-        .aep(normalize_probabilities=True)
-        .sum()
+    # Compute Speedup-adjusted ws range (same logic as WIFA)
+    A_vals = dat["Weibull_A"].values
+    k_vals = dat["Weibull_k"].values
+    ws_999 = A_vals * (-np.log(0.001)) ** (1.0 / k_vals)
+    min_su = np.min(speedup)
+    ws_max_ref = np.max(ws_999) / max(min_su, 0.1)
+    ws_range = np.arange(0, np.ceil(ws_max_ref) + 0.5, 0.5)
+
+    # Compute sub-sector wd (same logic as WIFA)
+    wd_sectors = dat["wd"].values
+    if len(wd_sectors) > 1 and np.isclose(wd_sectors[-1], 360.0):
+        wd_sectors = wd_sectors[:-1]
+    n_sub = 5
+    sw = 360.0 / len(wd_sectors)
+    ssw = sw / n_sub
+    offsets = np.linspace(-sw / 2 + ssw / 2, sw / 2 - ssw / 2, n_sub)
+    wd_fine = np.sort(
+        (wd_sectors[:, np.newaxis] + offsets[np.newaxis, :]).ravel() % 360
     )
+
+    # compute AEP with PyWake
+    res_aep = wfm(x, y, ws=ws_range, wd=wd_fine).aep(normalize_probabilities=True).sum()
 
     # compute AEP with API
     wifa_res = run_pywake(
@@ -464,6 +480,113 @@ def test_pywake_dict_timeseries_per_turbine_with_density(tmp_path):
 
     # Density correction should change AEP (test data varies around 1.225)
     assert aep_with != aep_without
+
+
+def test_weibull_speedup_dim_ordering(tmp_path):
+    """Regression test: per-turbine Weibull Speedup with both dim orderings.
+
+    flow_model_chain (via windkit) writes wind_resource.nc with dims
+    (wind_direction, wind_turbine), while WIFA's own test fixtures use
+    (wind_turbine, wind_direction).  A bug in _construct_weibull_site()
+    previously hardcoded axis=0 for the Speedup normalisation, which only
+    worked for the turbine-first ordering.  With direction-first data the
+    Speedup dims were silently swapped and PyWake ignored the variable,
+    removing all terrain-induced wind speed inhomogeneity from the wake
+    simulation and inflating wake losses from ~10 % to ~39 %.
+
+    This test runs the same per-turbine Weibull case with BOTH dim
+    orderings and asserts identical AEP.
+    """
+    from conftest import _ANALYSIS, _TURBINE
+
+    n_wd = 4
+    n_wt = 4
+    wd_vals = [0.0, 90.0, 180.0, 270.0]
+    ws_vals = list(np.arange(4.0, 26.0, 1.0).tolist())
+
+    # Per-turbine, per-sector Weibull A — turbine 3 is windiest
+    # Shape: (wind_direction, wind_turbine) = (4, 4)
+    A_data = [
+        [7.0, 8.0, 9.0, 10.0],  # sector 0°
+        [6.5, 7.5, 8.5, 9.5],  # sector 90°
+        [8.0, 9.0, 10.0, 11.0],  # sector 180°
+        [6.0, 7.0, 8.0, 9.0],  # sector 270°
+    ]
+    k_data = [[2.0] * n_wt] * n_wd
+    freq_data = [[1.0 / n_wd] * n_wt] * n_wd
+    ti_data = [[0.06] * n_wt] * n_wd
+
+    common_site = {
+        "name": "Test site",
+        "boundaries": {
+            "polygons": [{"x": [-90, 5000, 5000, -90], "y": [90, 90, -90, -90]}]
+        },
+    }
+    common_farm = {
+        "name": "Test farm",
+        "layouts": [
+            {"coordinates": {"x": [0, 1248.1, 2496.2, 3744.3], "y": [0, 0, 0, 0]}}
+        ],
+        "turbines": _TURBINE,
+    }
+    common_attrs = {
+        "flow_model": {"name": "pywake"},
+        "analysis": _ANALYSIS,
+        "model_outputs_specification": {
+            "turbine_outputs": {
+                "turbine_nc_filename": "PowerTable.nc",
+                "output_variables": ["power"],
+            },
+        },
+    }
+
+    def _make_system(data, dims, name):
+        return {
+            "name": name,
+            "site": {
+                **common_site,
+                "energy_resource": {
+                    "name": "Test resource",
+                    "wind_resource": {
+                        "wind_direction": wd_vals,
+                        "wind_speed": ws_vals,
+                        "wind_turbine": list(range(n_wt)),
+                        "reference_height": 119.0,
+                        "weibull_a": {"data": data["A"], "dims": dims},
+                        "weibull_k": {"data": data["k"], "dims": dims},
+                        "sector_probability": {"data": data["f"], "dims": dims},
+                        "turbulence_intensity": {"data": data["ti"], "dims": dims},
+                    },
+                },
+            },
+            "wind_farm": common_farm,
+            "attributes": common_attrs,
+        }
+
+    # --- 1. Direction-first ordering (flow_model_chain convention) --------
+    wd_first = _make_system(
+        {"A": A_data, "k": k_data, "f": freq_data, "ti": ti_data},
+        ["wind_direction", "wind_turbine"],
+        "Direction-first",
+    )
+    aep_wd_first = run_pywake(wd_first, output_dir=str(tmp_path / "wd_first"))
+    assert np.isfinite(aep_wd_first) and aep_wd_first > 0
+
+    # --- 2. Turbine-first ordering (WIFA test-fixture convention) ---------
+    A_T = np.array(A_data).T.tolist()
+    k_T = np.array(k_data).T.tolist()
+    freq_T = np.array(freq_data).T.tolist()
+    ti_T = np.array(ti_data).T.tolist()
+
+    wt_first = _make_system(
+        {"A": A_T, "k": k_T, "f": freq_T, "ti": ti_T},
+        ["wind_turbine", "wind_direction"],
+        "Turbine-first",
+    )
+    aep_wt_first = run_pywake(wt_first, output_dir=str(tmp_path / "wt_first"))
+
+    # Both orderings must produce identical AEP
+    npt.assert_allclose(aep_wd_first, aep_wt_first, rtol=1e-6)
 
 
 # if __name__ == "__main__":
