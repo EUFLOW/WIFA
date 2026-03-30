@@ -4,7 +4,7 @@ Install
 Prerequisites
 ~~~~~~~~~~~~~
 
-WIFA requires Python 3.9-3.11. We recommend using `uv <https://docs.astral.sh/uv/>`_ for fast, reliable Python environment management.
+WIFA requires Python 3.10-3.12. We recommend using `uv <https://docs.astral.sh/uv/>`_ for fast, reliable Python environment management.
 
 **Install uv:**
 
