@@ -724,7 +724,7 @@ def _configure_deficit_model(
     elif model_name == "SuperGaussian":
         wake_model_class = BlondelSuperGaussianDeficit2020
 
-    elif model_name == "TurboPark":
+    elif model_name == "TurbOPark":
         wake_model_class = TurboGaussianDeficit
 
     elif model_name.upper() == "FUGA":
