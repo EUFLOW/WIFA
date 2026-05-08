@@ -86,6 +86,81 @@ def load_and_validate_config(yaml_input, default_output_dir="output"):
     return system_dat, output_dir
 
 
+def _build_farm_turbine_list(farm_dat):
+    """Return per-farm (wt_list, type_names, hub_heights, per_position_type_idx)."""
+    from py_wake.wind_turbines import WindTurbine
+    from py_wake.wind_turbines.power_ct_functions import (
+        PowerCtFunctionList,
+        PowerCtTabular,
+    )
+
+    if "turbines" in farm_dat:
+        turbine_dats = [farm_dat["turbines"]]
+        type_names = ["0"]
+    else:
+        turbine_dats = [farm_dat["turbine_types"][k] for k in farm_dat["turbine_types"]]
+        type_names = list(farm_dat["turbine_types"].keys())
+
+    wt_list = []
+    hub_heights = {}
+    for turbine_dat, key in zip(turbine_dats, type_names):
+        hh = turbine_dat["hub_height"]
+        rd = turbine_dat["rotor_diameter"]
+        hub_heights[key] = hh
+
+        if "Cp_curve" in turbine_dat["performance"]:
+            cp = turbine_dat["performance"]["Cp_curve"]["Cp_values"]
+            cp_ws = turbine_dat["performance"]["Cp_curve"]["Cp_wind_speeds"]
+            power_curve_type = "cp"
+        elif "power_curve" in turbine_dat["performance"]:
+            cp_ws = turbine_dat["performance"]["power_curve"]["power_wind_speeds"]
+            pows = turbine_dat["performance"]["power_curve"]["power_values"]
+            power_curve_type = "power"
+        else:
+            raise ValueError("Missing Cp_curve or power_curve in turbine performance data")
+
+        ct = turbine_dat["performance"]["Ct_curve"]["Ct_values"]
+        ct_ws = turbine_dat["performance"]["Ct_curve"]["Ct_wind_speeds"]
+        speeds = np.arange(np.min([cp_ws, ct_ws]), np.max([cp_ws, ct_ws]) + 1, 1)
+        cts_int = np.interp(speeds, ct_ws, ct)
+
+        if power_curve_type == "power":
+            powers = np.interp(speeds, cp_ws, pows)
+        else:
+            cps_int = np.interp(speeds, cp_ws, cp)
+            powers = 0.5 * cps_int * speeds**3 * 1.225 * (rd / 2) ** 2 * np.pi
+
+        cutin = turbine_dat["performance"].get("cutin_wind_speed", 0)
+        cutout = turbine_dat["performance"].get("cutout_wind_speed")
+
+        wt = WindTurbine(
+            name=turbine_dat["name"],
+            diameter=rd,
+            hub_height=hh,
+            powerCtFunction=PowerCtTabular(speeds, powers, power_unit="W", ct=cts_int),
+            ws_cutin=cutin,
+            ws_cutout=cutout,
+        )
+        wt.powerCtFunction = PowerCtFunctionList(
+            key="operating",
+            powerCtFunction_lst=[
+                PowerCtTabular(ws=[0, 100], power=[0, 0], power_unit="w", ct=[0, 0]),
+                wt.powerCtFunction,
+            ],
+            default_value=1,
+        )
+        wt_list.append(wt)
+
+    if len(wt_list) == 1:
+        layouts = farm_dat["layouts"]
+        coords = layouts[0]["coordinates"] if isinstance(layouts, list) else layouts["coordinates"]
+        per_pos = [0] * len(coords["x"])
+    else:
+        per_pos = list(farm_dat["layouts"][0]["turbine_types"])
+
+    return wt_list, type_names, hub_heights, per_pos
+
+
 def create_turbines(farm_dat):
     """Create turbine objects from farm configuration.
 
@@ -178,6 +253,53 @@ def create_turbines(farm_dat):
         turbine_types = farm_dat["layouts"][0]["turbine_types"]
 
     return turbine, turbine_types, hub_heights
+
+
+def _build_multifarm_turbines(farms):
+    """Build a combined WindTurbines object spanning multiple farms.
+
+    Returns:
+        turbine: WindTurbine (single type) or WindTurbines (multi-type)
+        turbine_types: 0 or array length sum(N_i) — global type index per turbine
+        hub_heights: merged dict (key -> hub_height)
+        farm_slices: list of slice() objects, one per farm, indexing the global turbine axis
+    """
+    from py_wake.wind_turbines import WindTurbines
+
+    merged_turbines = []
+    merged_names = []
+    hub_heights = {}
+    type_indices = []
+    farm_slices = []
+    cursor = 0
+
+    for fd in farms:
+        wt_list, _type_names, hh, per_pos = _build_farm_turbine_list(fd)
+
+        local_to_global = []
+        for wt in wt_list:
+            if wt.name() in merged_names:
+                local_to_global.append(merged_names.index(wt.name()))
+            else:
+                merged_names.append(wt.name())
+                merged_turbines.append(wt)
+                local_to_global.append(len(merged_turbines) - 1)
+
+        hub_heights.update(hh)
+
+        n = len(per_pos)
+        type_indices.extend(local_to_global[i] for i in per_pos)
+        farm_slices.append(slice(cursor, cursor + n))
+        cursor += n
+
+    if len(merged_turbines) == 1:
+        return merged_turbines[0], 0, hub_heights, farm_slices
+    return (
+        WindTurbines.from_WindTurbine_lst(merged_turbines),
+        np.asarray(type_indices),
+        hub_heights,
+        farm_slices,
+    )
 
 
 def dict_to_site(resource_dict):
@@ -1073,17 +1195,22 @@ def run_pywake(yaml_input, output_dir="output"):
 
     system_dat, output_dir = load_and_validate_config(yaml_input, output_dir)
 
-    # Step 2: Create turbine objects
-    farm_dat = system_dat["wind_farm"]
-    turbine, turbine_types, hub_heights = create_turbines(farm_dat)
+    # Step 2: Create turbine objects (multi-farm aware)
+    farm_entry = system_dat["wind_farm"]
+    multi_farm = isinstance(farm_entry, list)
+    farms = farm_entry if multi_farm else [farm_entry]
 
-    # Get turbine positions
-    if isinstance(farm_dat["layouts"], list):
-        x = farm_dat["layouts"][0]["coordinates"]["x"]
-        y = farm_dat["layouts"][0]["coordinates"]["y"]
-    else:
-        x = farm_dat["layouts"]["coordinates"]["x"]
-        y = farm_dat["layouts"]["coordinates"]["y"]
+    turbine, turbine_types, hub_heights, farm_slices = _build_multifarm_turbines(farms)
+
+    # Get turbine positions across all farms
+    x, y = [], []
+    for fd in farms:
+        layouts = fd["layouts"]
+        coords = layouts[0]["coordinates"] if isinstance(layouts, list) else layouts["coordinates"]
+        x.extend(coords["x"])
+        y.extend(coords["y"])
+
+    farm_dat = farms[0]  # used below for rd lookup; assumes shared turbine spec across farms
 
     # Step 3: Construct site
     resource_dat = system_dat["site"]["energy_resource"]
@@ -1110,6 +1237,9 @@ def run_pywake(yaml_input, output_dir="output"):
     # Step 6: Generate outputs
     aep = generate_outputs(sim_results, system_dat, site_data, hub_heights, output_dir)
 
+    if multi_farm:
+        per_turbine = sim_results["aep_per_turbine"]
+        return [float(np.sum(per_turbine[s])) for s in farm_slices]
     return aep
 
 
