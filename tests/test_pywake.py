@@ -466,7 +466,9 @@ def _two_farm_system_dict():
         "site": {
             "name": "Test site",
             "boundaries": {
-                "polygons": [{"x": [-100, 4000, 4000, -100], "y": [100, 100, -100, -100]}]
+                "polygons": [
+                    {"x": [-100, 4000, 4000, -100], "y": [100, 100, -100, -100]}
+                ]
             },
             "energy_resource": {
                 "name": "Test resource",
@@ -476,7 +478,10 @@ def _two_farm_system_dict():
                     "weibull_a": {"data": [9.0], "dims": ["wind_direction"]},
                     "weibull_k": {"data": [2.2], "dims": ["wind_direction"]},
                     "sector_probability": {"data": [1.0], "dims": ["wind_direction"]},
-                    "turbulence_intensity": {"data": [0.07], "dims": ["wind_direction"]},
+                    "turbulence_intensity": {
+                        "data": [0.07],
+                        "dims": ["wind_direction"],
+                    },
                 },
             },
         },

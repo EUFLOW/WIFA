@@ -117,7 +117,9 @@ def _build_farm_turbine_list(farm_dat):
             pows = turbine_dat["performance"]["power_curve"]["power_values"]
             power_curve_type = "power"
         else:
-            raise ValueError("Missing Cp_curve or power_curve in turbine performance data")
+            raise ValueError(
+                "Missing Cp_curve or power_curve in turbine performance data"
+            )
 
         ct = turbine_dat["performance"]["Ct_curve"]["Ct_values"]
         ct_ws = turbine_dat["performance"]["Ct_curve"]["Ct_wind_speeds"]
@@ -153,7 +155,11 @@ def _build_farm_turbine_list(farm_dat):
 
     if len(wt_list) == 1:
         layouts = farm_dat["layouts"]
-        coords = layouts[0]["coordinates"] if isinstance(layouts, list) else layouts["coordinates"]
+        coords = (
+            layouts[0]["coordinates"]
+            if isinstance(layouts, list)
+            else layouts["coordinates"]
+        )
         per_pos = [0] * len(coords["x"])
     else:
         per_pos = list(farm_dat["layouts"][0]["turbine_types"])
@@ -1206,11 +1212,17 @@ def run_pywake(yaml_input, output_dir="output"):
     x, y = [], []
     for fd in farms:
         layouts = fd["layouts"]
-        coords = layouts[0]["coordinates"] if isinstance(layouts, list) else layouts["coordinates"]
+        coords = (
+            layouts[0]["coordinates"]
+            if isinstance(layouts, list)
+            else layouts["coordinates"]
+        )
         x.extend(coords["x"])
         y.extend(coords["y"])
 
-    farm_dat = farms[0]  # used below for rd lookup; assumes shared turbine spec across farms
+    farm_dat = farms[
+        0
+    ]  # used below for rd lookup; assumes shared turbine spec across farms
 
     # Step 3: Construct site
     resource_dat = system_dat["site"]["energy_resource"]
