@@ -447,6 +447,82 @@ def test_turbine_specific_speeds_timeseries():
     npt.assert_allclose(wifa_res, manual_aep, rtol=1e-6)
 
 
+def _two_farm_system_dict():
+    """Tiny two-farm config sharing one turbine type and one wind resource."""
+    from conftest import _ANALYSIS, _TURBINE
+
+    farm_a = {
+        "name": "Farm A (upwind)",
+        "layouts": [{"coordinates": {"x": [0.0, 700.0], "y": [0.0, 0.0]}}],
+        "turbines": _TURBINE,
+    }
+    farm_b = {
+        "name": "Farm B (downwind)",
+        "layouts": [{"coordinates": {"x": [3000.0, 3700.0], "y": [0.0, 0.0]}}],
+        "turbines": _TURBINE,
+    }
+    return {
+        "name": "multi-farm test",
+        "site": {
+            "name": "Test site",
+            "boundaries": {
+                "polygons": [
+                    {"x": [-100, 4000, 4000, -100], "y": [100, 100, -100, -100]}
+                ]
+            },
+            "energy_resource": {
+                "name": "Test resource",
+                "wind_resource": {
+                    "wind_direction": [270.0],
+                    "wind_speed": list(range(4, 26)),
+                    "weibull_a": {"data": [9.0], "dims": ["wind_direction"]},
+                    "weibull_k": {"data": [2.2], "dims": ["wind_direction"]},
+                    "sector_probability": {"data": [1.0], "dims": ["wind_direction"]},
+                    "turbulence_intensity": {
+                        "data": [0.07],
+                        "dims": ["wind_direction"],
+                    },
+                },
+            },
+        },
+        "wind_farm": [farm_a, farm_b],
+        "attributes": {
+            "flow_model": {"name": "pywake"},
+            "analysis": _ANALYSIS,
+            "model_outputs_specification": {},
+        },
+    }
+
+
+def test_pywake_multifarm_runs_fast(tmp_path):
+    import time
+
+    system = _two_farm_system_dict()
+
+    # Single-farm reference: each farm in isolation (no neighbor wakes)
+    solo_a = dict(system, wind_farm=system["wind_farm"][0])
+    solo_b = dict(system, wind_farm=system["wind_farm"][1])
+
+    t0 = time.perf_counter()
+    aep_multi = run_pywake(system, output_dir=str(tmp_path / "multi"))
+    elapsed = time.perf_counter() - t0
+
+    aep_a_solo = run_pywake(solo_a, output_dir=str(tmp_path / "a"))
+    aep_b_solo = run_pywake(solo_b, output_dir=str(tmp_path / "b"))
+
+    # Returns one AEP per farm
+    assert isinstance(aep_multi, list) and len(aep_multi) == 2
+
+    # Performance budget: fully synthetic 4-turbine, 1 ws/wd case must be quick
+    assert elapsed < 10.0, f"multi-farm sim too slow: {elapsed:.2f}s"
+
+    # Neighbor effect: farm B (downwind) loses energy when A is present
+    aep_a_multi, aep_b_multi = aep_multi
+    assert aep_b_multi < aep_b_solo
+    # Farm A is upwind of B, so its AEP should be ~unchanged
+    np.testing.assert_allclose(aep_a_multi, aep_a_solo, rtol=1e-3)
+
+
 def test_pywake_dict_timeseries_per_turbine_with_density(tmp_path):
     from conftest import make_timeseries_per_turbine_system_dict
 
