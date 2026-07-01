@@ -1,0 +1,24 @@
+# Derived from the IEA Wind 2200-22-MW Reference Offshore Wind Plant
+# https://github.com/IEAWindSystems/IEA-Wind-2200-22-ROWP (Apache-2.0)
+#pywake and foxes
+wind_deficit_model:
+  name: TurbOPark
+  wake_expansion_coefficient:
+    k_a: 0.04
+  # cTI: [1.5, 0.8]
+  ceps: 0.25
+  # ctlim: 0.96
+  use_effective_ws: False
+  # use_effective_ti: False
+axial_induction_model: 1D
+# deflection_model:
+#   name: None
+# turbulence_model:
+#   name: None
+superposition_model:
+  ws_superposition: Squared
+# rotor_averaging: {}
+# blockage_model:
+#   name: None
+# groundModel:
+#   name: Mirror

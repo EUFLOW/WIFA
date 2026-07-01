@@ -38,7 +38,7 @@ classifiers = [
 ]
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "windIO @ git+https://github.com/EUFlow/windIO.git",
+    "windIO @ git+https://github.com/IEAWindSystems/windIO.git",
     "xarray",
     "scipy",
     "pyyaml",

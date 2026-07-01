@@ -1,0 +1,22 @@
+# Derived from the IEA Wind 2200-22-MW Reference Offshore Wind Plant
+# https://github.com/IEAWindSystems/IEA-Wind-2200-22-ROWP (Apache-2.0)
+name: IEA Wind 2200-22-MW Reference Offshore Wind Plant (site)
+boundaries:
+    polygons: [
+        {
+            x: [555572.5, 556672.6, 559589.1, 558353.9, 549259.1],
+            y: [5832506.4, 5834433.9, 5849713.0, 5851409.2, 5840513.5],
+            crs: +proj=utm +zone=31 +datum=WGS84 +units=m +no_defs
+        },
+        {
+            x: [539465.9, 548473.2, 554930.8, 552835.3],
+            y: [5828781.1, 5839572.0, 5831382.2, 5827710.8],
+            crs: +proj=utm +zone=31 +datum=WGS84 +units=m +no_defs
+        },
+        {
+            x: [539465.9,  537761.1 , 535872.2 , 547496.6, 548730.0, 552835.3],
+            y: [5828781.1, 5826738.8 , 5814654.0 , 5820125.9, 5822551.6, 5827710.8],
+            crs: +proj=utm +zone=31 +datum=WGS84 +units=m +no_defs
+        }
+    ]
+energy_resource: !include ../plant_energy_resource/energy_resource.yaml

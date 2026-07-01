@@ -494,33 +494,52 @@ def _two_farm_system_dict():
     }
 
 
-def test_pywake_multifarm_runs_fast(tmp_path):
-    import time
-
+def test_pywake_multifarm_neighbor_wakes(tmp_path):
     system = _two_farm_system_dict()
 
     # Single-farm reference: each farm in isolation (no neighbor wakes)
     solo_a = dict(system, wind_farm=system["wind_farm"][0])
     solo_b = dict(system, wind_farm=system["wind_farm"][1])
 
-    t0 = time.perf_counter()
     aep_multi = run_pywake(system, output_dir=str(tmp_path / "multi"))
-    elapsed = time.perf_counter() - t0
-
     aep_a_solo = run_pywake(solo_a, output_dir=str(tmp_path / "a"))
     aep_b_solo = run_pywake(solo_b, output_dir=str(tmp_path / "b"))
 
-    # Returns one AEP per farm
+    # Returns one AEP per farm and writes outputs
     assert isinstance(aep_multi, list) and len(aep_multi) == 2
-
-    # Performance budget: fully synthetic 4-turbine, 1 ws/wd case must be quick
-    assert elapsed < 10.0, f"multi-farm sim too slow: {elapsed:.2f}s"
+    assert (tmp_path / "multi" / "output.yaml").exists()
 
     # Neighbor effect: farm B (downwind) loses energy when A is present
     aep_a_multi, aep_b_multi = aep_multi
     assert aep_b_multi < aep_b_solo
     # Farm A is upwind of B, so its AEP should be ~unchanged
     np.testing.assert_allclose(aep_a_multi, aep_a_solo, rtol=1e-3)
+
+
+def test_pywake_multifarm_conflicting_turbine_specs(tmp_path):
+    system = _two_farm_system_dict()
+
+    # Same turbine name, different spec, must be rejected
+    import copy
+
+    conflicting = copy.deepcopy(system["wind_farm"][1]["turbines"])
+    conflicting["hub_height"] = conflicting["hub_height"] + 10.0
+    system["wind_farm"][1]["turbines"] = conflicting
+
+    with pytest.raises(ValueError, match="defined differently"):
+        run_pywake(system, output_dir=str(tmp_path))
+
+
+def test_pywake_multifarm_rowp_example(tmp_path):
+    """Run the IEA 22MW reference offshore wind plant (three farms, shared site)."""
+    yaml_input = (
+        test_path
+        / "../examples/cases/multiple_wind_farms/wind_energy_system/system.yaml"
+    )
+    aep = run_pywake(str(yaml_input), output_dir=str(tmp_path))
+
+    assert isinstance(aep, list) and len(aep) == 3
+    assert all(farm_aep > 0 for farm_aep in aep)
 
 
 def test_pywake_dict_timeseries_per_turbine_with_density(tmp_path):

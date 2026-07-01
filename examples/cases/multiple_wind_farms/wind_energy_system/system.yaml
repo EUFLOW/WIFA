@@ -1,0 +1,9 @@
+# Derived from the IEA Wind 2200-22-MW Reference Offshore Wind Plant
+# https://github.com/IEAWindSystems/IEA-Wind-2200-22-ROWP (Apache-2.0)
+name: IEA Wind 2200-22-MW Reference Offshore Wind Plant (system definition)
+site: !include ../plant_energy_site/site.yaml
+wind_farm: !include ../plant_wind_farm/wind_farm.yaml
+attributes:
+  flow_model:
+    name: pywake
+  analysis: !include analysis.yaml
