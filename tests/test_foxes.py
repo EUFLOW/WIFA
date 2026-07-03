@@ -88,6 +88,11 @@ def test_foxes_timeseries_with_operating_flag():
     _run_foxes(wes_dir)
 
 
+def test_foxes_multiple_farms():
+    wes_dir = test_path / "../examples/cases/multiple_wind_farms/wind_energy_system/"
+    _run_foxes(wes_dir)
+
+
 def test_timeseries_per_turbine_with_density(tmp_path=Path(".")):
     import foxes.variables as FV
     from conftest import make_timeseries_per_turbine_system_dict
@@ -127,3 +132,4 @@ if __name__ == "__main__":
     test_foxes_heterogeneous_wind_rose_map()
     test_foxes_simple_wind_rose()
     test_timeseries_per_turbine_with_density()
+    test_foxes_multiple_farms()
