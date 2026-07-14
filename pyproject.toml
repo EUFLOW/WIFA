@@ -70,6 +70,7 @@ dev = [
     "ncplot",
     "nctoolkit",
     "cartopy",
+    "pre-commit",
 ]
 docs = [
     "sphinx>=7.0",
