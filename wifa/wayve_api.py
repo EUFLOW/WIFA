@@ -19,7 +19,6 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
     from wayve.apm import APM
     from wayve.grid.grid import Stat2Dgrid
     from wayve.momentum_flux_parametrizations import FrictionCoefficients
-    from wayve.pressure.gravity_waves.gravity_waves import NonUniform, Uniform
     from wayve.solvers import FixedPointIteration
 
     #####################
@@ -80,24 +79,41 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
     if h1 < h1_min:
         raise UserWarning("Lower layer height too low, please specify a higher value")
 
+    # Optional ABL-setup knobs (analysis.abl_setup), forwarded to flow_io_abl:
+    # geostrophic-wind mode and capping-inversion fit settings.
+    abl_setup = analysis_dat.get("abl_setup", {})
+    abl_kwargs = {}
+    if "Gmode" in abl_setup:
+        abl_kwargs["gmode"] = abl_setup["Gmode"]
+    if "dh_max" in abl_setup:
+        abl_kwargs["dh_max"] = abl_setup["dh_max"]
+    if "serz" in abl_setup:
+        abl_kwargs["serz"] = bool(abl_setup["serz"])
+
     ##################
     # Other APM components
     ##################
     # Momentum flux parametrization
     mfp = FrictionCoefficients()
-    # Pressure feedback parametrization
-    pressure = Uniform(dynamic=True, rotating=False)
+    # Pressure feedback parametrization: any value but 1 selects the
+    # profile-resolving NonUniform gravity-wave closure (<= 0 means "one
+    # sublayer per profile level"). The object is built per state
+    # (_pressure_for_state), because whether the profile actually supports
+    # NonUniform depends on the per-state inversion fit.
+    n_fa_layers = 1
     if "layers_description" in analysis_dat:
-        if "number_of_fa_layers" in analysis_dat["layers_description"]:
-            n_layers = analysis_dat["layers_description"]["number_of_fa_layers"]
-            if n_layers > 1:
-                pressure = NonUniform(n_layers=n_layers, order=1)
+        n_fa_layers = analysis_dat["layers_description"].get("number_of_fa_layers", 1)
 
     ######################
     # Read output settings
     ######################
-    # Select timestamps
-    times = resource_dat["wind_resource"]["time"]
+    # Select timestamps. `time_indices` are positions into the *full* wind
+    # resource arrays; they must be carried alongside the timestamp labels,
+    # because flow_io_abl() indexes the full arrays. Enumerating the subsetted
+    # timestamps instead would simulate rows 0..n-1 while labelling them with
+    # the requested timestamps.
+    all_times = resource_dat["wind_resource"]["time"]
+    time_indices = list(range(len(all_times)))
     run_config = system_dat["attributes"]["model_outputs_specification"][
         "run_configuration"
     ]
@@ -105,8 +121,8 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
         "all_occurences", True
     ):
         if "subset" in run_config["times_run"]:
-            subset = run_config["times_run"]["subset"]
-            times = [times[i] for i in subset]
+            time_indices = list(run_config["times_run"]["subset"])
+    times = [all_times[i] for i in time_indices]
     # Get turbine variables to output
     turbine_nc_filename = "turbine_data.nc"
     turbine_output_variables = ["power", "rotor_effective_velocity"]
@@ -116,7 +132,11 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
         ]
         if "turbine_nc_filename" in turb_out_dat:
             turbine_nc_filename = turb_out_dat["turbine_nc_filename"]
-        if "turbine_output_variables" in turb_out_dat:
+        # The schema (and every other WIFA engine) calls this `output_variables`;
+        # `turbine_output_variables` is kept as a fallback for legacy yamls.
+        if "output_variables" in turb_out_dat:
+            turbine_output_variables = turb_out_dat["output_variables"]
+        elif "turbine_output_variables" in turb_out_dat:
             turbine_output_variables = turb_out_dat["turbine_output_variables"]
     # Check flow field output specification
     flow_nc_filename = "flow_field.nc"
@@ -168,19 +188,39 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
     #####################
     # Perform model runs
     #####################
+    # Validate the capping-inversion spelling once, before the loop: an
+    # ambiguous or incomplete block is a defect of the file, and the loop's
+    # ``except Exception`` would otherwise report it as every state crashing.
+    capping_inversion_spelling(resource_dat["wind_resource"])
     # Initialize crash counter
     crashes = 0
+    # NonUniform free-atmosphere tally (per-state fallback is warned once)
+    nonuniform_states = 0
     # List of datasets
     ds_list = []
     ds_ff_list = []
     # Loop over timeseries
-    for time_index, time in enumerate(times):
+    for run_index, time_index in enumerate(time_indices):
+        time = times[run_index]
         if debug_mode:
             # Print timestep
-            print(f"time {time_index+1}/{len(times)}")
+            print(f"time {run_index + 1}/{len(times)}")
         try:
-            # Set up ABL
-            abl = flow_io_abl(resource_dat["wind_resource"], time_index, hh, h1)
+            # Set up ABL (solver frame: hub-height wind along +x)
+            abl, rotation = flow_io_abl(
+                resource_dat["wind_resource"], time_index, hh, h1, **abl_kwargs
+            )
+            # Rebuild the wind farm in the solver frame: wayve's gravity-wave
+            # solve assumes westerly flow, so the layout turns with the wind.
+            wind_farm, forcing, wf_offset_x, wf_offset_y = wf_setup(
+                farm_dat, analysis_dat, L_filter, debug_mode, rotation=rotation
+            )
+            coupling = wind_farm.coupling
+            wake_model = coupling.wake_model
+            # Pressure feedback for this state
+            pressure = _pressure_for_state(abl, n_fa_layers)
+            if type(pressure).__name__ == "NonUniform":
+                nonuniform_states += 1
             # Set up APM from components
             model = APM(grid, forcing, abl, mfp, pressure)
             # Use a fixed-point iteration solver with a relaxation factor of 0.7
@@ -203,14 +243,20 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
                     ["turbine"],
                     wind_farm.coupling.St,
                 )
+            # State-level ABL diagnostics. The capping inversion and the
+            # geostrophic wind are often *fitted* here rather than given (see
+            # flow_io_abl), so without these the atmosphere a run actually used
+            # is unrecoverable from its outputs. Scalars, no turbine dim.
+            diagnostics = _abl_diagnostics(abl, pressure)
+            assert not set(diagnostics) & set(turb_out_dict)
+            turb_out_dict |= diagnostics
             # NC setup
             ds = xr.Dataset(
                 turb_out_dict,
                 coords={"states": time, "turbine": range(Nt)},
             )
-            # Add to output list
-            ds_list.append(ds)
             # Flow field outputs #
+            ds_ff = None
             if report_flow and not debug_mode:
                 # Callables for flow evaluation
                 u_bg_evaluator = coupling.set_up_u_bg_evaluator(
@@ -220,22 +266,35 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
                 # Output arrays
                 wind_speed = np.zeros([len(x_ff), len(y_ff), len(z_ff)])
                 wind_dir = np.zeros([len(x_ff), len(y_ff), len(z_ff)])
+                # Query points: the requested earth-frame grid, rotated into
+                # the solver frame (where the farm sits and the wind blows
+                # along +x). Evaluating the rotated points directly keeps the
+                # output on the requested grid with no regridding.
+                c, s = np.cos(rotation), np.sin(rotation)
+                x_e, y_e = np.meshgrid(
+                    x_ff - wf_offset_x, y_ff - wf_offset_y, indexing="ij"
+                )
+                x_q = c * x_e + s * y_e
+                y_q = c * y_e - s * x_e
                 # Loop over z-planes
                 for k, z_k in enumerate(z_ff):
-                    # Get velocities
-                    u_bg, v_bg, u_wm, v_wm = wake_model.xy_plane(
+                    # Get velocities (solver frame)
+                    u_bg, v_bg, u_wm, v_wm = _xy_plane_points(
+                        wake_model,
                         wind_farm,
                         abl,
                         u_bg_evaluator,
                         apm_evaluator,
-                        x_ff - wf_offset_x,
-                        y_ff - wf_offset_y,
+                        x_q,
+                        y_q,
                         z_k,
                     )
-                    # Convert to speed and direction
+                    # Rotate velocity vectors back to the earth frame
+                    u_wm, v_wm = c * u_wm - s * v_wm, s * u_wm + c * v_wm
+                    # Convert to speed and direction (wrapped to [0, 360))
                     wind_speed[:, :, k] = np.sqrt(np.square(u_wm) + np.square(v_wm))
-                    wind_dir[:, :, k] = np.rad2deg(
-                        np.pi / 2 - (np.arctan2(v_wm, u_wm) + np.pi)
+                    wind_dir[:, :, k] = (
+                        np.rad2deg(np.pi / 2 - (np.arctan2(v_wm, u_wm) + np.pi)) % 360.0
                     )
                 # Flow output dictionary
                 flow_out_dict = {}
@@ -248,7 +307,10 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
                     flow_out_dict,
                     coords={"states": time, "x": x_ff, "y": y_ff, "z": z_ff},
                 )
-                # Add to output list
+            # Append outputs together, so a flow-field failure cannot leave
+            # turbine_data.nc and flow_field.nc with different states axes.
+            ds_list.append(ds)
+            if ds_ff is not None:
                 ds_ff_list.append(ds_ff)
 
         except Exception as exc:
@@ -258,6 +320,12 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
             continue
     if debug_mode:
         print(f"crashes: {crashes}/{len(times)}")
+    if n_fa_layers != 1:
+        # Make the per-state Uniform/NonUniform closure mixture visible
+        print(
+            f"NonUniform free atmosphere: {nonuniform_states}/{len(times)} "
+            "states (the rest fell back to Uniform)"
+        )
 
     # Combine into total dataset
     output_dir = Path(output_dir)
@@ -269,6 +337,253 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
         ds_ff_full = xr.concat(ds_ff_list, dim="states")
         output_fn = Path(output_dir) / flow_nc_filename
         ds_ff_full.to_netcdf(output_fn)
+
+
+def _abl_diagnostics(abl, pressure):
+    """Per-state record of the atmosphere the solver actually ran on.
+
+    ``flow_io_abl`` fits the capping inversion when the wind resource does not
+    state one, derives the geostrophic wind through ``Gmode``, and closes the
+    stress profile from surface scalars; ``_pressure_for_state`` then picks the
+    free-atmosphere closure per state. All of that is invisible in the turbine
+    outputs, so record it alongside them: it is what makes a run reproducible
+    and its inversion checkable against an independent boundary-layer height.
+
+    Names are prefixed ``abl_`` so they cannot collide with a turbine output:
+    ``air_density`` and ``turbulence_intensity`` are per-turbine fields in other
+    engines, and these share one dataset with them.
+
+    Returned as ``{name: ([], value)}`` — scalars on the state axis, no turbine
+    dimension.
+    """
+    gravity = 9.80665  # [m s-2], as in flow_io_abl
+    # gprime = g * dtheta / theta0, with theta0 the mixed-layer potential
+    # temperature at the inversion; invert it to report dtheta itself.
+    dtheta = abl.gprime * np.interp(abl.H, abl.zs, abl.ths) / gravity
+    values = {
+        "abl_height": (abl.H, "m"),
+        "abl_capping_inversion_thickness": (abl.inv_top - abl.inv_bottom, "m"),
+        "abl_capping_inversion_strength": (dtheta, "K"),
+        "abl_free_atmosphere_N": (abl.N, "s-1"),
+        "abl_geostrophic_wind_speed": (abl.S3, "m s-1"),
+        # Angle of the geostrophic wind in the solver frame, where the
+        # hub-height wind lies along +x: the cross-isobar angle, not a
+        # compass direction.
+        "abl_geostrophic_veer": (abl.WD3, "degree"),
+        # In the turbulence-profile branch wayve's ``utau`` carries the surface
+        # stress itself (m2 s-2), not its square root; everywhere else it is a
+        # velocity. Reported as wayve holds it.
+        "abl_friction_velocity": (abl.utau, "m s-1"),
+        "abl_air_density": (abl.rho, "kg m-3"),
+        "abl_turbulence_intensity": (abl.TI, "1"),
+        # 1 when this state resolved the free atmosphere on the profile,
+        # 0 when it fell back to the bulk closure.
+        "abl_nonuniform_free_atmosphere": (
+            float(type(pressure).__name__ == "NonUniform"),
+            "1",
+        ),
+    }
+    # Reporting must not be able to cost a state its results: anything
+    # unexpected here (a None, a non-scalar) becomes NaN rather than an
+    # exception that the caller's `except Exception` would turn into a drop.
+    out = {}
+    for name, (value, units) in values.items():
+        try:
+            out[name] = ([], float(value))
+        except (TypeError, ValueError):
+            out[name] = ([], float("nan"))
+        out[name] = (*out[name], {"units": units})
+    return out
+
+
+def _pressure_for_state(abl, n_fa_layers):
+    """Build the gravity-wave pressure closure for one state.
+
+    Anything other than exactly 1 requests wayve's NonUniform closure, which
+    resolves the free-atmosphere N(z) and wind shear by slicing the profile
+    between the inversion top and ``abl.h_strat`` into layers. A value <= 0 is
+    wayve's own "use the ABL's vertical grid" setting: the sublayers follow the
+    profile levels themselves, so a reanalysis column resolves the free
+    atmosphere at the resolution it actually has instead of an arbitrary count.
+
+    Either way that needs actual profile points in that range: truncated or
+    synthetic profiles (e.g. the scalar branch's Nieuwstadt profile, which
+    stops at the inversion) fall back to the bulk Uniform closure with a
+    warning. The warning text is deliberately state-independent so Python's
+    warning dedup collapses it on long time series; run_wayve prints a per-run
+    NonUniform/Uniform tally.
+    """
+    from wayve.pressure.gravity_waves.gravity_waves import NonUniform, Uniform
+
+    if n_fa_layers != 1:
+        h_min = max(abl.H, abl.inv_top if abl.inv_top is not None else 0.0)
+        n_pts = int(np.sum((abl.zs > h_min) & (abl.zs < abl.h_strat)))
+        if n_pts >= 2:
+            return NonUniform(n_layers=n_fa_layers, order=1)
+        warnings.warn(
+            "number_of_fa_layers requested but too few profile points lie "
+            "between the inversion top and the free-atmosphere top; falling "
+            "back to the Uniform free atmosphere for such states"
+        )
+    return Uniform(dynamic=True, rotating=False)
+
+
+def _xy_plane_points(
+    wake_model, wind_farm, abl, u_bg_evaluator, apm_evaluator, Xs, Ys, z
+):
+    """Evaluate the coupled flow at arbitrary (x, y) coordinate arrays.
+
+    Mirror of wayve 2.0.0's ``xy_plane`` methods (Lanzilao and foxes wake
+    models) with the axis-aligned ``meshgrid(xs, ys)`` replaced by
+    caller-provided 2-D coordinate arrays, so a rotated (solver-frame) grid
+    can be evaluated directly — every operation downstream of the meshgrid is
+    pointwise in the coordinates. Returns ``(u_bg, v_bg, u_wm, v_wm)`` with
+    the shape of ``Xs``. Equivalence with ``xy_plane`` on axis-aligned grids
+    is pinned by regression tests for both wake-model paths.
+    """
+    Nx, Ny = Xs.shape
+    if hasattr(wake_model, "_algo"):  # foxes coupling
+        import foxes.variables as FV
+        from foxes import Engine
+        from foxes.utils import wd2uv
+
+        locations = np.stack(
+            [np.ravel(Xs), np.ravel(Ys), np.full(Xs.size, float(z))], axis=1
+        )
+        with Engine.new(**wake_model._engine_pars):
+            point_results = wake_model._algo.calc_points(
+                wake_model._farm_results,
+                locations[None],
+                outputs=[FV.AMB_WS, FV.WS, FV.WD],
+            )
+        amb_uv = wd2uv(
+            point_results[FV.WD].to_numpy()[0], point_results[FV.AMB_WS].to_numpy()[0]
+        )
+        uv = wd2uv(
+            point_results[FV.WD].to_numpy()[0], point_results[FV.WS].to_numpy()[0]
+        )
+        amb_uv = amb_uv.reshape(Nx, Ny, 2)
+        uv = uv.reshape(Nx, Ny, 2)
+        return amb_uv[..., 0], amb_uv[..., 1], uv[..., 0], uv[..., 1]
+
+    # Lanzilao (UniDirectionalSelfSimilar) path
+    from wayve.forcing.wind_farms.wake_model_coupling.wake_models.lanzilao_merging import (
+        array_of_matrices,
+        dot_matrix_vec_arrays,
+    )
+    from wayve.forcing.wind_farms.wake_model_coupling.wake_models.wake_model_tools import (
+        evaluate_TI,
+    )
+
+    Nz = 1
+    zs = np.array([z])
+    # Get the turbine thrust coefficients
+    _, Ct, _ = wake_model.get_St_Ct_et(wind_farm, abl, u_bg_evaluator, apm_evaluator)
+    # Get wind farm information
+    turbines = wind_farm.turbines
+    Nt = wind_farm.Nturb
+    xloc = np.array([turbines[k].x for k in range(Nt)])
+    yloc = np.array([turbines[k].y for k in range(Nt)])
+    # Ambient TI
+    TI_inf = abl.TI
+    # Get turbine direction (streamwise)
+    e_str, e_span = wake_model.background_flow_direction(wind_farm, abl)
+    theta_str = np.arctan2(e_str[1], e_str[0])
+    # Sort turbines along wind direction
+    order = wake_model.sort_turbines(wind_farm, e_str)
+    # Turbine direction evaluation
+    if wake_model.wake_deflection:  # Base turbine direction on APM velocity
+        u_1, v_1, h_1 = apm_evaluator(xloc, yloc)
+        theta_turb = np.array([np.arctan2(v_1[i], u_1[i]) for i in range(Nt)])
+    else:
+        theta_turb = np.array([theta_str for _ in range(Nt)])
+    # Vector normal (t) and parallel (p) to rotor
+    ets = np.array(
+        [np.array([np.cos(theta_turb[i]), np.sin(theta_turb[i])]) for i in order]
+    )
+    eps = np.array(
+        [np.array([-np.sin(theta_turb[i]), np.cos(theta_turb[i])]) for i in order]
+    )
+    # Sort turbines along wind direction - for TI
+    xloc_sort = np.array([xloc[i] for i in order])
+    yloc_sort = np.array([yloc[i] for i in order])
+    D_sort = np.array([turbines[i].D for i in order])
+    Ct_sort = Ct[order]
+    theta_turb_sort = np.array([theta_turb[i] for i in order])
+    et_sort = np.array([ets[i, :] for i in order])
+    ep_sort = np.array([eps[i, :] for i in order])
+    # Evaluate TI at turbine locations
+    TI = evaluate_TI(
+        Nt,
+        et_sort,
+        ep_sort,
+        order,
+        xloc_sort,
+        yloc_sort,
+        D_sort,
+        Ct_sort,
+        TI_inf,
+        theta_turb_sort,
+        wake_model.ka,
+        wake_model.kb,
+    )
+    # Set up output
+    if wake_model.wake_deflection:
+        W_comb = np.zeros((Nx, Ny, Nz, 2)) + e_str[None, None, None, :]
+    else:
+        W_comb = np.ones((Nx, Ny, Nz))
+    for turb in range(Nt):
+        if Ct[turb] != 0.0:
+            # Evaluate W_t
+            W_t = type(wake_model).wake_function(
+                Nx,
+                Ny,
+                Nz,
+                Xs,
+                Ys,
+                zs,
+                TI[turb],
+                Ct[turb],
+                xloc[turb],
+                yloc[turb],
+                turbines[turb].D,
+                turbines[turb].zh,
+                theta_turb[turb],
+                ka=wake_model.ka,
+                kb=wake_model.kb,
+                ind=wake_model.induction,
+                mirr=wake_model.mirrored,
+            )
+            if wake_model.wake_deflection:
+                # Matrix of current turbine
+                et = ets[turb]
+                ep = eps[turb]
+                A_t = array_of_matrices(1 - W_t, np.outer(et, et)) + np.outer(ep, ep)
+                # Update wake deficit field
+                W_comb = dot_matrix_vec_arrays(A_t, W_comb)
+            else:
+                W_comb *= 1 - W_t
+    # Wake deficit in main flow direction
+    if wake_model.wake_deflection:
+        wake_deficit = np.inner(e_str, W_comb)
+    else:
+        wake_deficit = W_comb
+    # Evaluate background velocities
+    locations = np.stack(
+        [np.ravel(Xs), np.ravel(Ys), np.full(Xs.size, float(z))], axis=1
+    )
+    vel_bg = u_bg_evaluator(locations)
+    u_bg = np.reshape(vel_bg[:, 0], (Nx, Ny, Nz))
+    v_bg = np.reshape(vel_bg[:, 1], (Nx, Ny, Nz))
+    # Split up into streamwise and spanwise components
+    str_bg = u_bg * e_str[0] + v_bg * e_str[1]
+    span_bg = u_bg * e_span[0] + v_bg * e_span[1]
+    # Add wakes
+    str_wm = np.multiply(str_bg, wake_deficit)
+    # Convert to u and v components
+    u_wm = str_wm * e_str[0] + span_bg * e_span[0]
+    v_wm = str_wm * e_str[1] + span_bg * e_span[1]
+    return u_bg[:, :, 0], v_bg[:, :, 0], u_wm[:, :, 0], v_wm[:, :, 0]
 
 
 def nieuwstadt83_profiles(zh, v, wd, z0=1.0e-1, h=1.5e3, fc=1.0e-4, ust=0.666):
@@ -523,7 +838,7 @@ def read_turbine_type(turb_dat):
     return hh, rd, ct_curve, cp_curve
 
 
-def wf_setup(farm_dat, analysis_dat, L_filter=1.0e3, debug_mode=False):
+def wf_setup(farm_dat, analysis_dat, L_filter=1.0e3, debug_mode=False, rotation=0.0):
     # WAYVE imports
     from wayve.forcing.apm_forcing import ForcingComposite
     from wayve.forcing.wind_farms.dispersive_stresses import DispersiveStresses
@@ -533,14 +848,21 @@ def wf_setup(farm_dat, analysis_dat, L_filter=1.0e3, debug_mode=False):
     ####################
     # Set up WindFarm object
     ####################
-    # Get x and y positions
-    x = farm_dat["layouts"][0]["coordinates"]["x"]
-    y = farm_dat["layouts"][0]["coordinates"]["y"]
+    # Get x and y positions. Copy: this is called once per state now (the
+    # solver-frame rotation differs per state), so farm_dat must stay pristine.
+    x = np.asarray(farm_dat["layouts"][0]["coordinates"]["x"], dtype=float)
+    y = np.asarray(farm_dat["layouts"][0]["coordinates"]["y"], dtype=float)
     # Reposition to be at grid center
     wf_offset_x = np.mean(x)
     wf_offset_y = np.mean(y)
-    x -= wf_offset_x
-    y -= wf_offset_y
+    x = x - wf_offset_x
+    y = y - wf_offset_y
+    # Rotate the layout into the solver frame (see flow_io_abl: the ABL is
+    # built with the hub-height wind along +x, wayve's westerly convention,
+    # so the layout must turn with it to keep the wind-relative geometry).
+    if rotation != 0.0:
+        c, s = np.cos(rotation), np.sin(rotation)
+        x, y = c * x + s * y, c * y - s * x
     # Number of turbines
     Nt = len(x)
     # Get turbine types
@@ -648,27 +970,32 @@ def wake_model_setup(analysis_dat, debug_mode=False):
         Lanzilao,
     )
 
-    # WM tool
-    wake_tool = analysis_dat.get(
-        "wake_tool", "wayve"
-    )  # updated by Jonas -TODO update this according to updated schema
+    # WM tool. The windIO schema places `wake_tool` inside `wm_coupling`; a
+    # top-level `analysis.wake_tool` is rejected by validation (the schema sets
+    # additionalProperties: false). Older hand-written yamls put it at the
+    # analysis level, so keep reading that as a fallback.
+    wake_tool = analysis_dat.get("wm_coupling", {}).get(
+        "wake_tool", analysis_dat.get("wake_tool", "wayve")
+    )
     if wake_tool == "wayve":
         # Read wake model settings #
         wm_dat = analysis_dat["wind_deficit_model"]
         k_dat = wm_dat["wake_expansion_coefficient"]
-        # k, k_a, k_b, ceps
+        # windIO convention: k = k_a + k_b * TI. wayve's Lanzilao computes
+        # kwake = ka * TI + kb, so the pair maps swapped: ka=k_b, kb=k_a.
+        # A scalar k is a constant expansion -> kb, with no TI term.
         if "k_a" in k_dat and "k_b" in k_dat and "ceps" in wm_dat:
-            k_a = k_dat["k_a"]
-            k_b = k_dat["k_b"]
+            ti_coef = k_dat["k_b"]
+            k_const = k_dat["k_a"]
             ceps = wm_dat["ceps"]
         elif "k" in k_dat and "ceps" in wm_dat:
-            k_a = k_dat["k"]
-            k_b = 0.0
+            ti_coef = 0.0
+            k_const = k_dat["k"]
             ceps = wm_dat["ceps"]
         else:
             raise ValueError("Wake spreading parameter not specified!")
         # Use wake merging method of Lanzilao and Meyers (2021)
-        wake_model = Lanzilao(ka=k_a, kb=k_b, eps_beta=ceps)
+        wake_model = Lanzilao(ka=ti_coef, kb=k_const, eps_beta=ceps)
     elif wake_tool == "foxes":
         require("foxes")
         from foxes import ModelBook
@@ -678,26 +1005,159 @@ def wake_model_setup(analysis_dat, debug_mode=False):
 
         verbosity = 1 if debug_mode else 0
 
+        # foxes' Dict takes its own label as `_name`; a plain `name=` kwarg is
+        # stored as a *data* key and would be forwarded into the foxes
+        # Algorithm constructor (TypeError: unexpected keyword argument 'name').
         algo_dict = Dict(
             algo_type="Downwind",
             wake_models=[],
             verbosity=verbosity,
-            name="wayve.algorithm",
+            _name="wayve.algorithm",
         )
 
-        ana_dict = Dict(analysis_dat, name="analysis")
-        idict = Dict(algorithm=algo_dict, name="wayve")
+        ana_dict = Dict(analysis_dat, _name="analysis")
+        idict = Dict(algorithm=algo_dict, _name="wayve")
         mbook = ModelBook()
 
         _read_analysis(ana_dict, idict, mbook=mbook, verbosity=verbosity)
 
         wake_model = FoxesWakeModel(mbook=mbook, **idict["algorithm"])
+        # wayve@e87780a overrides background_flow_direction with logic
+        # identical to the base class but a broken lazy import (e_spanwise
+        # from wake_models.wake_model_tools instead of forcing_tools), which
+        # crashes every foxes-coupled solve. Rebind the base implementation
+        # while the override still carries the broken import; probing the
+        # override's own source (rather than the import target) keeps the
+        # shim inert once upstream fixes or rewrites the method.
+        import inspect
+
+        try:
+            bfd_src = inspect.getsource(FoxesWakeModel.background_flow_direction)
+        except (OSError, TypeError):
+            bfd_src = ""
+        if "wake_model_tools import e_spanwise" in bfd_src:
+            import types
+
+            from wayve.forcing.wind_farms.wake_model_coupling.wake_model_interface import (
+                UniDirectionalSelfSimilar,
+            )
+
+            wake_model.background_flow_direction = types.MethodType(
+                UniDirectionalSelfSimilar.background_flow_direction, wake_model
+            )
     else:
         raise NotImplementedError(f"Wake tool '{wake_tool}' not implemented!")
     return wake_model
 
 
-def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
+# Capping inversion: the windIO energy-resource schema spells the four scalars
+# flat, and WIFA's own code_saturne adapter already reads them that way
+# (cs_launch_modules.py). The nested
+# ``thermal_stratification.capping_inversion`` block is the older spelling and
+# is still accepted, so files written against it keep working; it cannot be
+# expressed in a netCDF ``!include``, whose root group is flat.
+# Ordered (h, dH, dtheta, lapse_rate) — the tuple read_capping_inversion returns.
+_CI_FLAT_KEYS = (
+    "ABL_height",
+    "capping_inversion_thickness",
+    "capping_inversion_strength",
+    "lapse_rate",
+)
+_CI_NESTED_KEYS = ("ABL_height", "dH", "dtheta", "lapse_rate")
+
+
+def capping_inversion_spelling(wind_resource_dat):
+    """Which spelling this wind resource uses for the capping inversion.
+
+    Parameters
+    ----------
+    wind_resource_dat: dict
+        Wind resource data
+
+    Returns
+    -------
+    str or None
+        ``"flat"``, ``"nested"``, or None when no inversion is specified (the
+        caller then fits one from the potential-temperature profile, or falls
+        back to defaults).
+
+    Raises
+    ------
+    ValueError
+        If both spellings are present, or if either is incomplete. Both are
+        defects of the *file*, not of a single state, which is why this check
+        is separate from the per-state value read: ``run_wayve`` calls it once
+        before the state loop, whose ``except Exception`` would otherwise turn
+        a malformed file into a run where every state silently "crashed".
+
+        A partial block is rejected rather than completed from defaults: of the
+        four scalars, ``capping_inversion_strength`` alone sets the amplitude of
+        the gravity-wave forcing, so silently pairing a real ``ABL_height`` with
+        an invented dtheta yields a result that looks fitted and is not.
+    """
+    flat = [key for key in _CI_FLAT_KEYS if key in wind_resource_dat]
+    nested = wind_resource_dat.get("thermal_stratification", {}).get(
+        "capping_inversion"
+    )
+    if flat and nested is not None:
+        raise ValueError(
+            "Wind resource specifies the capping inversion twice: flat keys "
+            f"{sorted(flat)} and a nested thermal_stratification."
+            "capping_inversion block. Keep one (the flat keys are the windIO "
+            "schema spelling)."
+        )
+    if nested is not None:
+        missing = [key for key in _CI_NESTED_KEYS if key not in nested]
+        if missing:
+            raise ValueError(
+                "Incomplete thermal_stratification.capping_inversion block; "
+                f"missing {missing}. All of {list(_CI_NESTED_KEYS)} are required."
+            )
+        return "nested"
+    if not flat:
+        return None
+    if len(flat) != len(_CI_FLAT_KEYS):
+        raise ValueError(
+            f"Incomplete capping inversion: found {sorted(flat)}, missing "
+            f"{sorted(set(_CI_FLAT_KEYS) - set(flat))}. All four are required "
+            "(they are not completed from defaults; see "
+            "capping_inversion_spelling). Omit all four to fit the inversion "
+            "from the potential-temperature profile instead."
+        )
+    return "flat"
+
+
+def read_capping_inversion(wind_resource_dat, time_index):
+    """The capping inversion of one state, in either windIO spelling.
+
+    Parameters
+    ----------
+    wind_resource_dat: dict
+        Wind resource data
+    time_index: int
+        Index of the timestamp to read
+
+    Returns
+    -------
+    tuple or None
+        ``(h, dh, dth, dthdz)`` — inversion centre height [m], thickness [m],
+        strength [K] and free-atmosphere lapse rate [K/m] — or None when the
+        resource specifies no inversion.
+    """
+    spelling = capping_inversion_spelling(wind_resource_dat)
+    if spelling is None:
+        return None
+    if spelling == "nested":
+        block = wind_resource_dat["thermal_stratification"]["capping_inversion"]
+        return tuple(float(block[key]["data"][time_index]) for key in _CI_NESTED_KEYS)
+    return tuple(
+        float(wind_resource_dat[key]["data"][time_index]) for key in _CI_FLAT_KEYS
+    )
+
+
+def flow_io_abl(
+    wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True, gmode="avg"
+):
     """
     Method to set up an ABL object based on FLOW IO
 
@@ -715,6 +1175,29 @@ def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
         Maximum depth of the inversion layer used in the inversion curve fitting procedure (default: None)
     serz (optional): boolean
         Whether the surface-extended version of the RZ model is used (default: True)
+    gmode (optional): str
+        How the free-atmosphere (geostrophic) velocity is derived from
+        height-resolved wind resources with mesoscale surface scalars
+        (see wayve's ``abl_setup.mesoscale_based``): "h1" (at the inversion
+        center), "h2" (at the inversion top), "avg" (profile average between
+        the inversion and 5 km; needs profiles reaching 5 km), or "trop"
+        (average to the tropopause; needs profiles reaching the stratosphere).
+        Ignored by the scalar and turbulence-profile input paths.
+        (default: "avg")
+
+    Returns
+    -------
+    abl: wayve.abl.abl.ABL
+        Atmospheric state in the *solver frame*: the hub-height wind blows
+        along +x (wayve's westerly convention, which its gravity-wave
+        machinery and anisotropic grids assume). Vertical veer is preserved
+        as spanwise components.
+    rotation: float
+        Angle (radians, counterclockwise) of the earth-frame hub-height flow
+        vector measured from east. Rotating earth-frame coordinates by
+        ``-rotation`` maps them into the solver frame (``wf_setup`` does this
+        to the layout); rotating solver-frame vectors by ``+rotation`` maps
+        results back to earth.
     """
     # Atmospheric state setup
     from wayve.abl.abl import ABL
@@ -724,7 +1207,14 @@ def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
     kappa = 0.41  # Von Karman constant
     omega = 7.2921159e-5  # angular speed of the Earth [rad/s]
     # Basic atmospheric scalars #
-    air_density = 1.225  # Hard-coded for now
+    # Operating air density. The APM velocity solution does not depend on it
+    # (see wayve's power_turbines docstring); it linearly scales the reported
+    # turbine power — the Cp curve itself stays referenced to the standard
+    # 1.225 kg/m3 of the windIO power curve (read_turbine_type) — and is
+    # forwarded to foxes as FV.RHO by the foxes coupling.
+    air_density = 1.225
+    if "air_density" in wind_resource_dat.keys():
+        air_density = wind_resource_dat["air_density"]["data"][time_index]
     # Surface roughness
     z0 = 1.0e-1
     if "z0" in wind_resource_dat.keys():
@@ -744,28 +1234,30 @@ def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
         # Wind speed and direction
         v = wind_resource_dat["wind_speed"]["data"][time_index]
         wd = wind_resource_dat["wind_direction"]["data"][time_index]
+        # Solver-frame normalization: build the profile as if the wind were
+        # westerly (the Ekman veer relative to the hub-height direction is
+        # unchanged) and report the rotation undone by doing so.
+        rotation = np.deg2rad(270.0 - wd)
+        wd = 270.0
         # Friction velocity
         ust = 0.666
         if "friction_velocity" in wind_resource_dat.keys():
             ust = wind_resource_dat["friction_velocity"]["data"][time_index]
-        # Turbulence intensity
+        # Turbulence intensity. windIO carries TI as a fraction (as does the
+        # vertical-profile branch below, and the 0.04 default just above), so
+        # it is used as-is. Guard on the variable actually being read.
         TI = 0.04
-        if "z0" in wind_resource_dat.keys():
-            TI = wind_resource_dat["turbulence_intensity"]["data"][time_index] / 100.0
+        if "turbulence_intensity" in wind_resource_dat.keys():
+            TI = wind_resource_dat["turbulence_intensity"]["data"][time_index]
         # Capping inversion information
         h = 1.5e3
         dh = 100.0
         dth = 5.0
         dthdz = 2.0e-3
         th0 = 293.15
-        if "thermal_stratification" in wind_resource_dat.keys():
-            thermal_data = wind_resource_dat["thermal_stratification"]
-            if "capping_inversion" in thermal_data.keys():
-                ci_data = thermal_data["capping_inversion"]
-                h = ci_data["ABL_height"]["data"][time_index]
-                dh = ci_data["dH"]["data"][time_index]
-                dth = ci_data["dtheta"]["data"][time_index]
-                dthdz = ci_data["lapse_rate"]["data"][time_index]
+        ci = read_capping_inversion(wind_resource_dat, time_index)
+        if ci is not None:
+            h, dh, dth, dthdz = ci
         inv_bottom, inv_top = h - dh / 2, h + dh / 2
         # Nieuwstadt profiles for velocity and shear stress
         zs, us, vs, U3, V3, tauxs, tauys, nus = nieuwstadt83_profiles(
@@ -776,63 +1268,201 @@ def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
     else:
         # Read out vertical profile
         zs = np.array(wind_resource_dat["height"])
+        if not np.all(np.diff(zs) > 0):
+            # np.interp silently returns garbage on unsorted abscissae, and
+            # the hub interpolation below now derives the whole solver frame.
+            raise UserWarning("wind resource 'height' must be strictly ascending")
         vs = np.array(wind_resource_dat["wind_speed"]["data"][time_index])
         wds = np.array(wind_resource_dat["wind_direction"]["data"][time_index])
         ths = np.array(wind_resource_dat["potential_temperature"]["data"][time_index])
-        TIs = np.array(wind_resource_dat["turbulence_intensity"]["data"][time_index])
-        # Interpolate TI
-        TI = np.interp(zh, zs, TIs)
+        # Solver-frame normalization: shift the direction profile so the
+        # hub-height wind is westerly (flow along +x). Shifting the input
+        # keeps the veer and makes everything derived below (velocity
+        # components, Gmode geostrophic wind, momentum-flux alignment) land
+        # in the solver frame consistently — without wayve's ABL.rotate(),
+        # whose momentum-flux rotation is broken in wayve 2.0.0. Unwrap
+        # first so interpolation across the 0/360 seam is safe.
+        wds = np.rad2deg(np.unwrap(np.deg2rad(wds)))
+        wd_hub = np.interp(zh, zs, wds)
+        rotation = np.deg2rad(270.0 - wd_hub)
+        wds = wds + (270.0 - wd_hub)
+        # Turbulence intensity: height-resolved profile or one value per state
+        TIs = np.atleast_1d(
+            np.array(wind_resource_dat["turbulence_intensity"]["data"][time_index])
+        )
+        TI = np.interp(zh, zs, TIs) if TIs.size > 1 else float(TIs[0])
         # Velocity components
         us = -vs * np.sin(np.deg2rad(wds))
         vs = -vs * np.cos(np.deg2rad(wds))
         # Check available inputs
-        if "k" in wind_resource_dat.keys():  # RANS-like inputs
-            tkes = np.array(wind_resource_dat["k"]["data"][time_index])
-            eps = np.array(wind_resource_dat["epsilon"]["data"][time_index])
-            # Eddy viscosity
-            C_mu = 0.09  # k-epsilon model value
-            nus = C_mu * np.divide(
-                np.square(tkes), eps, out=np.zeros_like(tkes), where=eps != 0
-            )
-            # Momentum fluxes
-            dudz = np.gradient(us, zs, edge_order=2)
-            dvdz = np.gradient(vs, zs, edge_order=2)
-            tauxs = nus * dudz
-            tauys = nus * dvdz
-        else:  # Shear stress profile directly available
-            tauxs = np.array(wind_resource_dat["tau_x"]["data"][time_index])
-            tauys = np.array(wind_resource_dat["tau_y"]["data"][time_index])
-            nus = None
-        # Total momentum flux
-        taus = np.sqrt(np.square(tauxs) + np.square(tauys))
-        # Friction velocity
-        ust = taus[0]  # Assume friction velocity is not given explicitly
-        # Estimate boundary layer height based on momentum flux #
-        f_tau = interp1d(taus, zs)
-        blh = f_tau(0.01 * ust)
-        # Capping inversion information
-        if (
-            "thermal_stratification" in wind_resource_dat.keys()
-            and "capping_inversion"
-            in wind_resource_dat["thermal_stratification"].keys()
+        if "k" in wind_resource_dat.keys() or "tau_x" in wind_resource_dat.keys():
+            # Turbulence profiles provided directly (LES/RANS-like inputs)
+            if "k" in wind_resource_dat.keys():  # RANS-like inputs
+                tkes = np.array(wind_resource_dat["k"]["data"][time_index])
+                eps = np.array(wind_resource_dat["epsilon"]["data"][time_index])
+                # Eddy viscosity
+                C_mu = 0.09  # k-epsilon model value
+                nus = C_mu * np.divide(
+                    np.square(tkes), eps, out=np.zeros_like(tkes), where=eps != 0
+                )
+                # Momentum fluxes
+                dudz = np.gradient(us, zs, edge_order=2)
+                dvdz = np.gradient(vs, zs, edge_order=2)
+                tauxs = nus * dudz
+                tauys = nus * dvdz
+            else:  # Shear stress profile directly available
+                tauxs = np.array(wind_resource_dat["tau_x"]["data"][time_index])
+                tauys = np.array(wind_resource_dat["tau_y"]["data"][time_index])
+                # Explicit stress components are earth-frame vectors: rotate
+                # them into the solver frame along with the velocities.
+                c_r, s_r = np.cos(rotation), np.sin(rotation)
+                tauxs, tauys = c_r * tauxs + s_r * tauys, c_r * tauys - s_r * tauxs
+                nus = None
+            # Total momentum flux
+            taus = np.sqrt(np.square(tauxs) + np.square(tauys))
+            # Friction velocity
+            ust = taus[0]  # Assume friction velocity is not given explicitly
+            # Estimate boundary layer height based on momentum flux #
+            f_tau = interp1d(taus, zs)
+            blh = f_tau(0.01 * ust)
+            # Capping inversion information
+            ci = read_capping_inversion(wind_resource_dat, time_index)
+            if ci is not None:
+                h, dh, dth, dthdz = ci
+                # Mixed-layer temperature from the profile the resource
+                # supplies, as every other branch does. A fixed 293.15 K here
+                # made the buoyancy jump g*dtheta/th0 disagree with the ABL's
+                # own theta profile by up to ~4% at realistic temperatures.
+                th0 = np.interp(h, zs, ths)
+                inv_bottom, inv_top = h - dh / 2, h + dh / 2
+            else:
+                inv_bottom, h, inv_top, th0, dth, dthdz = ci_fitting(
+                    zs, ths, l_mo, blh, dh_max=dh_max, serz=serz
+                )
+            # Geostrophic wind speed
+            z = np.linspace(h, 15.0e3, 1000)
+            _trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+            U3 = _trapezoid(np.interp(z, zs, us), z) / (15.0e3 - h)
+            V3 = _trapezoid(np.interp(z, zs, vs), z) / (15.0e3 - h)
+        elif (
+            "friction_velocity" in wind_resource_dat.keys()
+            and "boundary_layer_height" in wind_resource_dat.keys()
         ):
-            thermal_data = wind_resource_dat["thermal_stratification"]
-            ci_data = thermal_data["capping_inversion"]
-            th0 = 293.15
-            h = ci_data["ABL_height"]["data"][time_index]
-            dh = ci_data["dH"]["data"][time_index]
-            dth = ci_data["dtheta"]["data"][time_index]
-            dthdz = ci_data["lapse_rate"]["data"][time_index]
-            inv_bottom, inv_top = h - dh / 2, h + dh / 2
+            # Mesoscale/reanalysis-style inputs (e.g. ERA5): u/v/theta profiles
+            # plus surface scalars (ust, blh, L_MO) instead of turbulence
+            # profiles — wayve's abl_setup.mesoscale_based() territory.
+            ust = wind_resource_dat["friction_velocity"]["data"][time_index]
+            blh = wind_resource_dat["boundary_layer_height"]["data"][time_index]
+            if zs[-1] >= 12.0e3:
+                # Profiles reach the stratosphere: use wayve's full setup,
+                # including the tropopause two-line fit. Note the radiating
+                # top-layer state differs from the truncated branch below:
+                # here Uinf/Vinf are means above the fitted tropopause and
+                # Ninf is the fitted stratospheric N, while the truncated
+                # branch uses the top-of-profile point and the inversion
+                # fit's free lapse rate.
+                from wayve.abl.abl_setup import mesoscale_based
+
+                lat = np.rad2deg(np.arcsin(fc / (2.0 * omega)))
+                # us/vs are already solver-frame (see above), so the ABL
+                # comes out westerly-aligned without further rotation.
+                return (
+                    mesoscale_based(
+                        zs,
+                        us,
+                        vs,
+                        ths,
+                        ust,
+                        blh,
+                        l_mo,
+                        lat,
+                        h1,
+                        z0=(z0 if "z0" in wind_resource_dat.keys() else None),
+                        TI=TI,
+                        rho=air_density,
+                        dh_max=(300.0 if dh_max is None else dh_max),
+                        Gmode=gmode,
+                        serz=serz,
+                    ),
+                    rotation,
+                )
+            # Truncated profiles (reanalysis subsets often stop below the
+            # tropopause, e.g. ERA5 levels 96-137 end near 6 km): run the same
+            # core setup but skip mesoscale_based's unconditional tropopause
+            # fit, which would feed a garbage stratosphere into the ABL.  The
+            # free atmosphere is capped at the profile top instead (see the
+            # ABL constructor below), and Gmode is restricted to what the
+            # data supports.
+            stable = 0.0 < l_mo < 100
+            # Capping inversion: an explicit windIO block wins over the fit
+            ci = read_capping_inversion(wind_resource_dat, time_index)
+            if ci is not None:
+                h, dh, dth, dthdz = ci
+                inv_bottom, inv_top = h - dh / 2, h + dh / 2
+                th0 = np.interp(h, zs, ths)
+            else:
+                inv_bottom, h, inv_top, th0, dth, dthdz = ci_fitting(
+                    zs,
+                    ths,
+                    l_mo,
+                    blh,
+                    dh_max=(300.0 if dh_max is None else dh_max),
+                    serz=serz,
+                )
+            # Momentum flux and eddy viscosity profiles from surface scalars
+            # (same closure as mesoscale_based: stable turbulence extends to
+            # blh, convective turbulence to the inversion)
+            tau = np.zeros(zs.shape)
+            nus = np.zeros(zs.shape)
+            if stable:
+                m = zs <= blh
+                tau[m] = ust**2 * (1 - zs[m] / blh) ** 1.5
+                nus[m] = kappa * ust * zs[m] * (1 - zs[m] / blh) ** 2
+            else:
+                m = zs <= h
+                tau[m] = ust**2 * (1 - zs[m] / h)
+                nus[m] = kappa * ust * zs[m] * (1 - zs[m] / h) ** 2
+            # Geostrophic wind from the profile, restricted to the data range
+            if gmode == "trop":
+                raise UserWarning(
+                    "Gmode 'trop' needs profiles reaching the stratosphere; "
+                    f"these stop at {zs[-1]:.0f} m"
+                )
+            if gmode == "avg" and zs[-1] < 5.0e3:
+                warnings.warn(
+                    f"Gmode 'avg' averages the wind up to 5 km but the "
+                    f"profiles stop at {zs[-1]:.0f} m; falling back to 'h2' "
+                    "(wind at the inversion top)"
+                )
+                gmode = "h2"
+            if gmode == "h1":
+                U3 = np.interp(h, zs, us)
+                V3 = np.interp(h, zs, vs)
+            elif gmode == "h2":
+                U3 = np.interp(inv_top, zs, us)
+                V3 = np.interp(inv_top, zs, vs)
+            elif gmode == "avg":
+                z = np.linspace(h, 5.0e3, 1000)
+                _trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+                U3 = _trapezoid(np.interp(z, zs, us), z) / (5.0e3 - h)
+                V3 = _trapezoid(np.interp(z, zs, vs), z) / (5.0e3 - h)
+            else:
+                raise UserWarning(f"Gmode '{gmode}' unknown")
+            # Momentum flux aligned with the geostrophic wind (as in
+            # mesoscale_based)
+            tau_angle = np.arctan2(V3, U3)
+            tauxs = np.cos(tau_angle) * tau
+            tauys = np.sin(tau_angle) * tau
+            # Log-law surface roughness estimate when not provided
+            if "z0" not in wind_resource_dat.keys():
+                z0 = zs[0] / np.exp(kappa * np.hypot(us[0], vs[0]) / ust)
         else:
-            inv_bottom, h, inv_top, th0, dth, dthdz = ci_fitting(
-                zs, ths, l_mo, blh, dh_max=dh_max, serz=serz
+            raise UserWarning(
+                "Vertical-profile wind resource needs either turbulence "
+                "profiles ('k'/'epsilon' or 'tau_x'/'tau_y') or mesoscale "
+                "surface scalars ('friction_velocity' and "
+                "'boundary_layer_height')"
             )
-        # Geostrophic wind speed
-        z = np.linspace(h, 15.0e3, 1000)
-        _trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
-        U3 = _trapezoid(np.interp(z, zs, us), z) / (15.0e3 - h)
-        V3 = _trapezoid(np.interp(z, zs, vs), z) / (15.0e3 - h)
     # Upper layer thickness
     h2 = h - h1
     if (
@@ -845,28 +1475,40 @@ def flow_io_abl(wind_resource_dat, time_index, zh, h1, dh_max=None, serz=True):
     # gprime and N
     gprime = gravity * dth / th0
     N = np.sqrt(gravity * dthdz / th0)
-    # Set up ABL object
-    return ABL(
-        zs,
-        us,
-        vs,
-        ths,
-        tauxs,
-        tauys,
-        h1,
-        h2,
-        gprime,
-        N,
-        U3,
-        V3,
-        fc,
-        nus=nus,
-        rho=air_density,
-        TI=TI,
-        z0=z0,
-        ust=ust,
-        inv_bottom=inv_bottom,
-        inv_top=inv_top,
+    # Set up ABL object. The free atmosphere is capped at the top of the
+    # profile data: NonUniform's layer setup spans [inversion top, h_strat],
+    # and the default h_strat of 10 km would put most of its layers in a
+    # no-data region where the profile splines just hold constants. Above
+    # the cap sits the semi-infinite radiating layer with the top-of-profile
+    # state (Uinf/Vinf) and the fitted free-atmosphere stratification (Ninf).
+    return (
+        ABL(
+            zs,
+            us,
+            vs,
+            ths,
+            tauxs,
+            tauys,
+            h1,
+            h2,
+            gprime,
+            N,
+            U3,
+            V3,
+            fc,
+            nus=nus,
+            rho=air_density,
+            TI=TI,
+            z0=z0,
+            ust=ust,
+            inv_bottom=inv_bottom,
+            inv_top=inv_top,
+            h_strat=min(10.0e3, zs[-1]),
+            Uinf=us[-1],
+            Vinf=vs[-1],
+            Ninf=N,
+        ),
+        rotation,
     )
 
 

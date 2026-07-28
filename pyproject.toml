@@ -38,7 +38,7 @@ classifiers = [
 ]
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "windIO @ git+https://github.com/EUFlow/windIO.git",
+    "windIO @ git+https://github.com/bjarketol/windIO.git@flow-model-chain",
     "xarray",
     "scipy",
     "pyyaml",
@@ -70,6 +70,7 @@ dev = [
     "ncplot",
     "nctoolkit",
     "cartopy",
+    "pre-commit",
 ]
 docs = [
     "sphinx>=7.0",

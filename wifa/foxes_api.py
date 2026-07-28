@@ -66,7 +66,9 @@ def run_foxes(
         idir = input_dir
     else:
         input_yaml = Path(input_yaml)
-        wio = load_yaml(input_yaml)
+        # Keep an included wind_resource.nc as numpy arrays (foxes' reader uses
+        # ndarrays directly), avoiding the dict-of-lists memory blow-up.
+        wio = load_yaml(input_yaml, nc_data="array")
         idir = input_yaml.parent
 
     idict, algo, odir = read_windio_dict(wio, verbosity=verbosity)

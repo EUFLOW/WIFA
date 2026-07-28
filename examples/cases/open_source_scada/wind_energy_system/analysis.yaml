@@ -1,9 +1,9 @@
 #pywake and foxes
 wind_deficit_model:
   name: Bastankhah2014
-  wake_expansion_coefficient: # k = ka*ti + kb
-    k_a: 0.00
-    k_b: 0.04
+  wake_expansion_coefficient: # k = k_a + k_b*ti
+    k_a: 0.04
+    k_b: 0.0
     free_stream_ti: false
   ceps: 0.2
   use_effective_ws: true
