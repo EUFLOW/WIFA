@@ -70,7 +70,7 @@ WindIO is installed automatically with WIFA. For manual installation:
 
 .. code-block:: console
 
-    uv pip install "windIO @ git+https://github.com/IEAWindSystems/windIO.git"
+    uv pip install "windIO @ git+https://github.com/IEAWindSystems/windIO.git@4a61df862d56a12b328e76be1261eaa5d622eb84"
 
 Or clone `windIO <https://github.com/IEAWindSystems/windIO>`_ and install:
 

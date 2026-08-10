@@ -666,6 +666,143 @@ def test_pywake_timeseries_two_hub_heights_without_ti(tmp_path):
     assert np.isfinite(aep) and aep > 0
 
 
+def test_pywake_layout_types_positional_indices(tmp_path):
+    """Layout turbine_types entries that are not mapping keys but are valid
+    0-based indices must be interpreted positionally (windIO schema wording)."""
+    system = _two_farm_system_dict()
+    farm = system["wind_farm"][0]
+    turbine = farm.pop("turbines")
+    import copy
+
+    other = copy.deepcopy(turbine)
+    other["name"] = turbine["name"] + " b"
+    farm["turbine_types"] = {"typeA": turbine, "typeB": other}
+    farm["layouts"][0]["turbine_types"] = [0, 1]
+    system["wind_farm"] = farm
+
+    with pytest.warns(UserWarning, match="positional indices"):
+        aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
+def test_pywake_multifarm_shared_spec_with_nan(tmp_path):
+    """Identical turbine specs containing NaN must merge, not be rejected as
+    conflicting."""
+    system = _two_farm_system_dict()
+    for farm in system["wind_farm"]:
+        farm["turbines"]["performance"]["cutout_wind_speed"] = float("nan")
+
+    per_farm = run_pywake(system, output_dir=str(tmp_path))
+    assert isinstance(per_farm, list) and len(per_farm) == 2
+
+
+def test_specs_equal_edge_cases():
+    """_specs_equal must handle NaN, numpy arrays, and nested list-of-dict
+    specs without raising, and still detect genuine differences."""
+    from wifa.pywake_api import _specs_equal
+
+    nan_spec = {"a": float("nan"), "curve": [1.0, float("nan")]}
+    assert _specs_equal(nan_spec, {"a": float("nan"), "curve": [1.0, float("nan")]})
+
+    np_spec = {"modes": [{"power": np.array([1.0, 2.0])}]}
+    assert _specs_equal(np_spec, {"modes": [{"power": np.array([1.0, 2.0])}]})
+    assert not _specs_equal(np_spec, {"modes": [{"power": np.array([1.0, 3.0])}]})
+
+    assert not _specs_equal({"a": 1}, {"a": 2})
+    assert not _specs_equal({"a": [1, 2]}, {"a": [1, 2, 3]})
+    assert _specs_equal({"a": np.array([1, 2])}, {"a": [1, 2]})
+
+
+def test_pywake_timeseries_height_coord_per_turbine_ti(tmp_path):
+    """Height-coordinate wind data combined with per-turbine TI on the
+    multi-hub-height path must run (regression: uncaught IndexError)."""
+    import copy
+
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    resource = system["site"]["energy_resource"]["wind_resource"]
+    n_times = len(resource["time"])
+
+    resource["height"] = [80.0, 140.0]
+    resource["wind_speed"] = {
+        "data": [[8.0 + 0.1 * t, 9.0 + 0.1 * t] for t in range(n_times)],
+        "dims": ["time", "height"],
+    }
+    resource["wind_direction"] = {
+        "data": [[270.0, 272.0] for _ in range(n_times)],
+        "dims": ["time", "height"],
+    }
+    # turbulence_intensity keeps dims ["time", "wind_turbine"] with no height
+
+    farm = system["wind_farm"]
+    short = farm.pop("turbines")
+    tall = copy.deepcopy(short)
+    tall["name"] = short["name"] + " tall"
+    tall["hub_height"] = short["hub_height"] + 20.0
+    farm["turbine_types"] = {1: short, 2: tall}
+    farm["layouts"][0]["turbine_types"] = [1, 1, 2]
+
+    with pytest.warns(UserWarning, match="averaged across"):
+        aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
+def test_pywake_timeseries_subset_multi_hub_height(tmp_path):
+    """A times_run subset without an operating array must size the default
+    operating array to the subset, not the full mask length."""
+    import copy
+
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    resource = system["site"]["energy_resource"]["wind_resource"]
+    del resource["operating"]
+    n_times = len(resource["time"])
+    subset = [True, False, True, False, True, False][:n_times]
+    system["attributes"]["model_outputs_specification"]["run_configuration"] = {
+        "times_run": {"all_occurences": False, "subset": subset}
+    }
+
+    farm = system["wind_farm"]
+    short = farm.pop("turbines")
+    tall = copy.deepcopy(short)
+    tall["name"] = short["name"] + " tall"
+    tall["hub_height"] = short["hub_height"] + 20.0
+    farm["turbine_types"] = {1: short, 2: tall}
+    farm["layouts"][0]["turbine_types"] = [1, 1, 2]
+
+    aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
+def test_pywake_timeseries_turbine_first_dims(tmp_path):
+    """Resource variables declared with dims ['wind_turbine', 'time'] must be
+    averaged/subset along the declared axes, not hard-coded ones."""
+    import copy
+
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    resource = system["site"]["energy_resource"]["wind_resource"]
+    for var in ("wind_speed", "wind_direction", "turbulence_intensity", "density"):
+        data = np.array(resource[var]["data"])
+        resource[var] = {"data": data.T.tolist(), "dims": ["wind_turbine", "time"]}
+    del resource["operating"]
+
+    farm = system["wind_farm"]
+    short = farm.pop("turbines")
+    tall = copy.deepcopy(short)
+    tall["name"] = short["name"] + " tall"
+    tall["hub_height"] = short["hub_height"] + 20.0
+    farm["turbine_types"] = {1: short, 2: tall}
+    farm["layouts"][0]["turbine_types"] = [1, 1, 2]
+
+    with pytest.warns(UserWarning, match="averaged across"):
+        aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
 def test_pywake_timeseries_two_types_same_hub_height(tmp_path):
     """Two turbine types sharing one hub height on the time-series path must
     not crash on the height-deduplication (regression: xarray dim conflict)."""

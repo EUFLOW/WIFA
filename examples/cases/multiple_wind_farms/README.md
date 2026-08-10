@@ -25,3 +25,9 @@ the IEA Wind 2.2-GW, 22-MW Reference Offshore Wind Plant:
 The data have been adapted for use as a WIFA example. WIFA itself is
 MIT-licensed; the Apache-2.0 license of the upstream dataset applies to the
 files in this directory that are derived from it.
+
+Note on cable cost units: the upstream dataset labels the same cable cost
+values (368.9/428.9/737.1 per metre) as "€/m" for one farm and "USD/m" for the
+other two. This example normalizes the comments to "USD/m" (the label upstream
+uses for two of the three farms); the numeric values are unchanged from
+upstream. Treat the currency as indicative only.

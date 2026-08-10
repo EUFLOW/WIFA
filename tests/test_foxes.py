@@ -98,8 +98,22 @@ def test_foxes_multiple_farms():
             "foxes >= 1.8.4 required to read a wind_farm list "
             "(install with the 'foxes' extra: uv run --extra foxes pytest)"
         )
-    wes_dir = test_path / "../examples/cases/multiple_wind_farms/wind_energy_system/"
-    _run_foxes(wes_dir)
+    import foxes.variables as FV
+
+    yaml_input = (
+        test_path
+        / "../examples/cases/multiple_wind_farms/wind_energy_system/system.yaml"
+    )
+    validate_yaml(yaml_input, Path("plant/wind_energy_system"))
+    output_dir = Path("output_test_foxes_multifarm")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    farm_results = run_foxes(yaml_input, output_dir=output_dir)[0]
+    rmtree(output_dir)
+
+    # All three ROWP farms (33 + 33 + 34 turbines) are simulated together
+    assert farm_results[FV.P].shape[1] == 100
+    total_power = float(farm_results[FV.P].sum())
+    assert np.isfinite(total_power) and total_power > 0
 
 
 def test_timeseries_per_turbine_with_density(tmp_path=Path(".")):
