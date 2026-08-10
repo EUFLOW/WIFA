@@ -38,7 +38,7 @@ classifiers = [
 ]
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "windIO @ git+https://github.com/IEAWindSystems/windIO.git",
+    "windIO @ git+https://github.com/IEAWindSystems/windIO.git@4a61df862d56a12b328e76be1261eaa5d622eb84",
     "xarray",
     "scipy",
     "pyyaml",
@@ -46,7 +46,7 @@ dependencies = [
 
 [project.optional-dependencies]
 py_wake = ["py_wake>=2.6.5"]
-foxes = ["foxes @ git+https://github.com/FraunhoferIWES/foxes.git@eu_flow"]
+foxes = ["foxes @ git+https://github.com/FraunhoferIWES/foxes.git@5fcbffeca0fd9636be651dba0bd9c297108b1ab4"]
 floris = ["floris @ git+https://github.com/lejeunemax/floris.git"]
 wayve = [
     "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve",

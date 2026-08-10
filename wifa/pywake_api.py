@@ -99,12 +99,43 @@ def _farm_turbine_specs(farm_dat):
     per_position_type_idx maps each turbine position to an index into that list.
     """
     layout = _farm_layout(farm_dat)
+    n_positions = len(layout["coordinates"]["x"])
     if "turbines" in farm_dat:
         specs = [farm_dat["turbines"]]
-        per_pos = [0] * len(layout["coordinates"]["x"])
+        per_pos = [0] * n_positions
     else:
-        specs = list(farm_dat["turbine_types"].values())
-        per_pos = list(layout["turbine_types"])
+        type_map = farm_dat["turbine_types"]
+        keys = list(type_map.keys())
+        specs = [type_map[k] for k in keys]
+        if "turbine_types" in layout:
+            # Layout entries are keys into the turbine_types mapping (windIO
+            # allows arbitrary keys, e.g. 1-based), not positional indices.
+            key_to_idx = {}
+            for i, k in enumerate(keys):
+                key_to_idx[k] = i
+                key_to_idx[str(k)] = i
+            per_pos = []
+            for k in layout["turbine_types"]:
+                idx = key_to_idx.get(k, key_to_idx.get(str(k)))
+                if idx is None:
+                    raise ValueError(
+                        f"Layout turbine type {k!r} of farm "
+                        f"'{farm_dat.get('name', '?')}' is not a key of its "
+                        f"turbine_types mapping (keys: {keys})"
+                    )
+                per_pos.append(idx)
+        elif len(specs) == 1:
+            per_pos = [0] * n_positions
+        else:
+            raise ValueError(
+                f"Farm '{farm_dat.get('name', '?')}' has multiple turbine_types "
+                "but its layout does not specify a turbine type per position"
+            )
+    if len(per_pos) != n_positions:
+        raise ValueError(
+            f"Farm '{farm_dat.get('name', '?')}' has {n_positions} turbine "
+            f"positions but {len(per_pos)} layout turbine_types entries"
+        )
     return specs, per_pos
 
 
@@ -166,6 +197,22 @@ def create_turbine(turbine_dat):
     return this_turbine
 
 
+def _specs_equal(a, b):
+    """Compare two turbine spec fragments, tolerating numpy arrays.
+
+    Plain dict equality raises "ambiguous truth value" when dict-input callers
+    supply curves as numpy arrays.
+    """
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_specs_equal(a[k], b[k]) for k in a)
+    if isinstance(a, (list, tuple, np.ndarray)) or isinstance(
+        b, (list, tuple, np.ndarray)
+    ):
+        a_arr, b_arr = np.asarray(a), np.asarray(b)
+        return a_arr.shape == b_arr.shape and bool(np.all(a_arr == b_arr))
+    return a == b
+
+
 def _build_multifarm_turbines(farms):
     """Build turbine objects spanning one or more farms.
 
@@ -193,7 +240,7 @@ def _build_multifarm_turbines(farms):
         for spec in specs:
             for global_idx, seen in enumerate(merged_specs):
                 if seen["name"] == spec["name"]:
-                    if seen != spec:
+                    if not _specs_equal(seen, spec):
                         raise ValueError(
                             f"Turbine '{spec['name']}' is defined differently "
                             "in different farms"
@@ -463,39 +510,41 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
 
         ws, wd = ws_int, wd_int
 
-        # Handle TI interpolation
-        if "turbulence_intensity" not in wind_resource:
-            TI = 0.02
-        else:
+        # Handle TI interpolation: one entry per unique height in `seen`
+        if "turbulence_intensity" in wind_resource:
             TI_data = np.array(wind_resource["turbulence_intensity"]["data"])[cases_idx]
-            for hh in sorted(np.append(list(hub_heights.values()), additional_heights)):
-                if hh in seen[len(speeds) :]:
-                    continue
+            ti_dims = wind_resource["turbulence_intensity"].get("dims", ["time"])
+            if "wind_turbine" in ti_dims:
+                TI_data = np.mean(TI_data, axis=1)
+            for hh in seen:
                 if heights:
                     ti_int = _interpolate_with_min(heights, TI_data, hh, min_val=0.02)
                 else:
                     ti_int = TI_data
                 TIs.append(ti_int)
-            TI = ti_int
+            TI = TIs[-1]
+        else:
+            TI = 0.02
+            TIs = [np.full(np.shape(speeds[0]), TI) for _ in seen]
 
-            data_vars = {
-                "WS": (["h", "time"], np.array(speeds)),
-                "WD": (["h", "time"], np.array(dirs)),
-                "TI": (["h", "time"], np.array(TIs)),
-                "P": 1,
-            }
-            if "density" in wind_resource:
-                density_vals = np.array(wind_resource["density"]["data"])[cases_idx]
-                density_dims = wind_resource["density"].get("dims", ["time"])
-                if "wind_turbine" in density_dims:
-                    density_vals = np.mean(density_vals, axis=1)
-                data_vars["Air_density"] = (["time"], density_vals)
-            site = XRSite(
-                xr.Dataset(
-                    data_vars=data_vars,
-                    coords={"h": seen, "time": np.arange(len(times))},
-                )
+        data_vars = {
+            "WS": (["h", "time"], np.array(speeds)),
+            "WD": (["h", "time"], np.array(dirs)),
+            "TI": (["h", "time"], np.array(TIs)),
+            "P": 1,
+        }
+        if "density" in wind_resource:
+            density_vals = np.array(wind_resource["density"]["data"])[cases_idx]
+            density_dims = wind_resource["density"].get("dims", ["time"])
+            if "wind_turbine" in density_dims:
+                density_vals = np.mean(density_vals, axis=1)
+            data_vars["Air_density"] = (["time"], density_vals)
+        site = XRSite(
+            xr.Dataset(
+                data_vars=data_vars,
+                coords={"h": seen, "time": np.arange(np.shape(speeds[0])[0])},
             )
+        )
     else:
         # Single turbine type
         print(np.array(ws).shape, np.array(heights).shape)
@@ -1106,7 +1155,8 @@ def run_pywake(yaml_input, output_dir="output"):
         output_dir: Output directory (can be overridden in YAML config)
 
     Returns:
-        float: Total AEP in GWh
+        float: Total AEP in GWh (single farm), or
+        list[float]: AEP in GWh per farm, in input order (multi-farm input)
     """
     # Step 1: Load and validate configuration
     require("py_wake")

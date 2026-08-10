@@ -89,6 +89,15 @@ def test_foxes_timeseries_with_operating_flag():
 
 
 def test_foxes_multiple_farms():
+    from importlib.metadata import version
+
+    from packaging.version import Version
+
+    if Version(version("foxes")) < Version("1.8.4"):
+        pytest.skip(
+            "foxes >= 1.8.4 required to read a wind_farm list "
+            "(install with the 'foxes' extra: uv run --extra foxes pytest)"
+        )
     wes_dir = test_path / "../examples/cases/multiple_wind_farms/wind_energy_system/"
     _run_foxes(wes_dir)
 

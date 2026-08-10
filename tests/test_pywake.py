@@ -540,6 +540,149 @@ def test_pywake_multifarm_rowp_example(tmp_path):
 
     assert isinstance(aep, list) and len(aep) == 3
     assert all(farm_aep > 0 for farm_aep in aep)
+    assert (tmp_path / "output.yaml").exists()
+
+
+def test_pywake_multifarm_sum_matches_total(tmp_path):
+    """Per-farm AEPs must sum to the AEP of the merged single-farm run."""
+    system = _two_farm_system_dict()
+    per_farm = run_pywake(system, output_dir=str(tmp_path / "multi"))
+
+    merged = _two_farm_system_dict()
+    farm_a, farm_b = merged["wind_farm"]
+    coords_a = farm_a["layouts"][0]["coordinates"]
+    coords_b = farm_b["layouts"][0]["coordinates"]
+    merged["wind_farm"] = {
+        "name": "merged",
+        "layouts": [
+            {
+                "coordinates": {
+                    "x": coords_a["x"] + coords_b["x"],
+                    "y": coords_a["y"] + coords_b["y"],
+                }
+            }
+        ],
+        "turbines": farm_a["turbines"],
+    }
+    total = run_pywake(merged, output_dir=str(tmp_path / "single"))
+
+    npt.assert_allclose(sum(per_farm), total, rtol=1e-6)
+
+
+def test_pywake_multifarm_timeseries_sum_matches_total(tmp_path):
+    """Same sum-to-total invariant on the time-series resource path."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    base = make_timeseries_per_turbine_system_dict("pywake")
+    total = run_pywake(base, output_dir=str(tmp_path / "single"))
+
+    multi = make_timeseries_per_turbine_system_dict("pywake")
+    farm = multi["wind_farm"]
+    coords = farm["layouts"][0]["coordinates"]
+    turbine = farm["turbines"]
+    multi["wind_farm"] = [
+        {
+            "name": "Farm A",
+            "layouts": [{"coordinates": {"x": coords["x"][:2], "y": coords["y"][:2]}}],
+            "turbines": turbine,
+        },
+        {
+            "name": "Farm B",
+            "layouts": [{"coordinates": {"x": coords["x"][2:], "y": coords["y"][2:]}}],
+            "turbines": turbine,
+        },
+    ]
+    per_farm = run_pywake(multi, output_dir=str(tmp_path / "multi"))
+
+    assert isinstance(per_farm, list) and len(per_farm) == 2
+    npt.assert_allclose(sum(per_farm), total, rtol=1e-6)
+
+
+def test_pywake_singlefarm_type_map_without_layout_types(tmp_path):
+    """A single-spec turbine_types mapping without per-position layout types
+    must fall back to that type (regression: KeyError on schema-valid input)."""
+    system = _two_farm_system_dict()
+    farm = system["wind_farm"][0]
+    farm["turbine_types"] = {1: farm.pop("turbines")}
+    system["wind_farm"] = farm
+
+    aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
+def test_pywake_multifarm_dict_form_layouts(tmp_path):
+    """windIO allows `layouts` as a single mapping instead of a list."""
+    system = _two_farm_system_dict()
+    for farm in system["wind_farm"]:
+        farm["layouts"] = farm["layouts"][0]
+
+    per_farm = run_pywake(system, output_dir=str(tmp_path))
+    assert isinstance(per_farm, list) and len(per_farm) == 2
+    assert all(np.isfinite(a) and a > 0 for a in per_farm)
+
+
+def test_pywake_layout_types_length_mismatch(tmp_path):
+    """Fewer layout turbine_types entries than coordinates must raise, not
+    silently misattribute turbines between farms."""
+    system = _two_farm_system_dict()
+    farm = system["wind_farm"][0]
+    farm["turbine_types"] = {1: farm.pop("turbines")}
+    farm["layouts"][0]["turbine_types"] = [1]  # 1 entry, 2 coordinates
+
+    with pytest.raises(ValueError, match="turbine positions but"):
+        run_pywake(system, output_dir=str(tmp_path))
+
+
+def test_pywake_multitype_one_based_keys(tmp_path):
+    """windIO turbine_types mappings may use arbitrary (e.g. 1-based) keys;
+    layout entries are keys, not positional indices."""
+    yaml_input = (
+        test_path
+        / "../examples/cases/windio_4turbines_multipleTurbines/wind_energy_system/system.yaml"
+    )
+    aep = run_pywake(str(yaml_input), output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
+def test_pywake_timeseries_two_hub_heights_without_ti(tmp_path):
+    """Multi-hub-height time-series without turbulence_intensity must fall back
+    to a default TI instead of crashing with site=None."""
+    import copy
+
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    del system["site"]["energy_resource"]["wind_resource"]["turbulence_intensity"]
+
+    farm = system["wind_farm"]
+    short = farm.pop("turbines")
+    tall = copy.deepcopy(short)
+    tall["name"] = short["name"] + " tall"
+    tall["hub_height"] = short["hub_height"] + 20.0
+    farm["turbine_types"] = {1: short, 2: tall}
+    farm["layouts"][0]["turbine_types"] = [1, 1, 2]
+
+    aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
+def test_pywake_timeseries_two_types_same_hub_height(tmp_path):
+    """Two turbine types sharing one hub height on the time-series path must
+    not crash on the height-deduplication (regression: xarray dim conflict)."""
+    import copy
+
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    farm = system["wind_farm"]
+    type_a = farm.pop("turbines")
+    type_b = copy.deepcopy(type_a)
+    type_b["name"] = type_a["name"] + " b"
+    farm["turbine_types"] = {1: type_a, 2: type_b}
+    farm["layouts"][0]["turbine_types"] = [1, 1, 2]
+
+    aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
 
 
 def test_pywake_dict_timeseries_per_turbine_with_density(tmp_path):

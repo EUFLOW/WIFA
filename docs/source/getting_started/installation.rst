@@ -57,7 +57,7 @@ WIFA
 
 .. note::
 
-    WIFA depends on windIO (an EU-FLOW fork) which is installed automatically.
+    WIFA depends on windIO (the upstream IEAWindSystems package) which is installed automatically.
     Each modeling tool (PyWake, foxes, wayve) is available as an optional extra:
     ``wifa[py_wake]``, ``wifa[foxes]``, ``wifa[wayve]``, or ``wifa[all]`` for all of them.
     code_saturne must be installed independently (see below).
@@ -70,13 +70,13 @@ WindIO is installed automatically with WIFA. For manual installation:
 
 .. code-block:: console
 
-    uv pip install "windIO @ git+https://github.com/EUFLOW/windIO.git"
+    uv pip install "windIO @ git+https://github.com/IEAWindSystems/windIO.git"
 
-Or clone `the windIO fork <https://github.com/EUFLOW/windIO>`_ and install:
+Or clone `windIO <https://github.com/IEAWindSystems/windIO>`_ and install:
 
 .. code-block:: console
 
-    git clone https://github.com/EUFLOW/windIO.git
+    git clone https://github.com/IEAWindSystems/windIO.git
     cd windIO
     uv pip install -e .
 

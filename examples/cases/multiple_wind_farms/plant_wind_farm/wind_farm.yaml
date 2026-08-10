@@ -68,7 +68,7 @@
         cable_type: [0, 1, 2]
         cross_section: [185, 400, 1000]     # mm^2
         capacity: [3, 5, 7]                 # turbines
-        cost: [368.9, 428.9, 737.1]         # €/m
+        cost: [368.9, 428.9, 737.1]         # USD/m
 
 - name: IEA Wind 2200-22-MW Reference Offshore Wind Plant Mid
   layouts:
