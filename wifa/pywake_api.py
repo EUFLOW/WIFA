@@ -109,15 +109,31 @@ def _farm_turbine_specs(farm_dat):
         specs = [type_map[k] for k in keys]
         if "turbine_types" in layout:
             # Layout entries are keys into the turbine_types mapping (windIO
-            # allows arbitrary keys, e.g. 1-based). Exact key matches always
-            # win; a string/number coercion (1 vs "1") is only consulted for
-            # entries that match no key exactly, and never shadows a real key.
+            # allows arbitrary keys, e.g. 1-based). Resolution rules:
+            # 1. If every entry resolves as a mapping key (exact match first;
+            #    a string/number coercion like 1 vs "1" is consulted only when
+            #    it does not shadow a different real key), use key semantics.
+            # 2. Otherwise, if every entry is a valid 0-based integer index,
+            #    interpret positionally (the windIO schema also describes the
+            #    entries as integer indices) and warn with the per-entry
+            #    assignment so nothing is reinterpreted silently.
+            # 3. Otherwise raise. YAML booleans are rejected outright: they
+            #    would alias integer keys/indices 0 and 1.
             entries = list(layout["turbine_types"])
+            if any(isinstance(k, (bool, np.bool_)) for k in entries):
+                raise ValueError(
+                    f"Layout turbine_types of farm "
+                    f"'{farm_dat.get('name', '?')}' contains boolean entries "
+                    f"({entries!r}); booleans are neither mapping keys nor "
+                    "positional indices"
+                )
             exact = {k: i for i, k in enumerate(keys)}
             coerced = {}
             for i, k in enumerate(keys):
                 s = str(k)
-                if s not in exact and s not in coerced:
+                if s in exact and exact[s] != i:
+                    continue  # a different key claims this literal
+                if s not in coerced:
                     coerced[s] = i
 
             def _resolve(entry):
@@ -127,23 +143,23 @@ def _farm_turbine_specs(farm_dat):
                 return idx
 
             resolved = [_resolve(k) for k in entries]
+            positional_ok = all(
+                isinstance(k, (int, np.integer)) and 0 <= k < len(specs)
+                for k in entries
+            )
             if all(idx is not None for idx in resolved):
                 per_pos = resolved
-            elif all(idx is None for idx in resolved) and all(
-                isinstance(k, (int, np.integer))
-                and not isinstance(k, (bool, np.bool_))
-                and 0 <= k < len(specs)
-                for k in entries
-            ):
-                # No entry matches a mapping key, but all are valid 0-based
-                # integers: interpret positionally (the windIO schema also
-                # describes layout turbine_types as integer indices).
+            elif positional_ok:
+                per_pos = [int(k) for k in entries]
+                assignment = {
+                    str(k): specs[i].get("name", i) for k, i in zip(entries, per_pos)
+                }
                 warnings.warn(
                     f"Farm '{farm_dat.get('name', '?')}': layout turbine_types "
-                    "entries do not match the turbine_types mapping keys; "
-                    "interpreting them as 0-based positional indices"
+                    "entries do not all match the turbine_types mapping keys; "
+                    f"interpreting them as 0-based positional indices "
+                    f"({assignment})"
                 )
-                per_pos = [int(k) for k in entries]
             else:
                 bad = sorted(
                     {k for k, idx in zip(entries, resolved) if idx is None},
@@ -151,10 +167,9 @@ def _farm_turbine_specs(farm_dat):
                 )
                 raise ValueError(
                     f"Layout turbine types {bad!r} of farm "
-                    f"'{farm_dat.get('name', '?')}' do not match its "
-                    f"turbine_types mapping keys ({keys}); a positional "
-                    "interpretation is only used when no entry matches a key "
-                    "and all entries are valid 0-based indices"
+                    f"'{farm_dat.get('name', '?')}' neither match its "
+                    f"turbine_types mapping keys ({keys}) nor form valid "
+                    "0-based positional indices"
                 )
         elif len(specs) == 1:
             per_pos = [0] * n_positions
@@ -500,14 +515,30 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
         vals = np.array(data_obj["data"])
         dims = list(data_obj.get("dims", default_dims))
         if heights is not None and vals.ndim == len(dims) + 1 and "height" not in dims:
-            # dims underspecified (e.g. 2-D data with no dims declared):
-            # assume the extra trailing axis is height when the resource
-            # declares a height coordinate
-            dims = dims + ["height"]
+            # dims underspecified (e.g. 2-D data with no dims declared): the
+            # extra axis is taken as height only when its length matches the
+            # height coordinate and cannot be the turbine axis instead;
+            # anything ambiguous must declare dims explicitly
+            n_h = len(heights)
+            n_wt = len(x_positions)
+            if vals.shape[-1] == n_h and n_h != n_wt:
+                dims = dims + ["height"]
+            elif vals.shape[0] == n_h and vals.shape[-1] != n_h and n_h != n_wt:
+                dims = ["height"] + dims
+            else:
+                raise ValueError(
+                    f"Cannot infer the dimensions of wind_resource variable "
+                    f"'{var_name}' with shape {vals.shape}: declare its "
+                    "'dims' explicitly"
+                )
         if "time" in dims:
             time_sel = np.arange(len(times))[cases_idx]
             vals = np.take(vals, time_sel, axis=dims.index("time"))
         return vals, dims
+
+    def get_density_series(target_height):
+        density_vals, density_dims = _mean_over_turbines(*get_resource_data("density"))
+        return _interp_along_height(density_vals, density_dims, heights, target_height)
 
     # Extract raw data (time-subset)
     ws_vals, ws_dims = get_resource_data("wind_speed")
@@ -540,7 +571,7 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
 
     # Handle multi-height interpolation
     additional_heights = []
-    hh = list(hub_heights.values())[0]
+    hh = first_hh = list(hub_heights.values())[0]
     site = None
 
     if len(hub_heights) > 1:
@@ -561,8 +592,10 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
             if hh in seen:
                 continue
             seen.append(hh)
-            speeds.append(_interp_along_height(ws, ws_dims_eff, heights, hh))
-            dirs.append(_interp_along_height(wd, wd_dims_eff, heights, hh))
+            speeds.append(
+                _interp_along_height(ws, ws_dims_eff, heights, hh, min_val=0.0)
+            )
+            dirs.append(_interp_direction_along_height(wd, wd_dims_eff, heights, hh))
 
         ws, wd = speeds[-1], dirs[-1]
 
@@ -592,8 +625,7 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
             "P": 1,
         }
         if "density" in wind_resource:
-            density_vals, _ = _mean_over_turbines(*get_resource_data("density"))
-            data_vars["Air_density"] = (["time"], density_vals)
+            data_vars["Air_density"] = (["time"], get_density_series(first_hh))
         site = XRSite(
             xr.Dataset(
                 data_vars=data_vars,
@@ -602,8 +634,8 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
         )
     else:
         # Single turbine type
-        ws = _interp_along_height(ws, ws_dims_eff, heights, hh)
-        wd = _interp_along_height(wd, wd_dims_eff, heights, hh)
+        ws = _interp_along_height(ws, ws_dims_eff, heights, hh, min_val=0.0)
+        wd = _interp_direction_along_height(wd, wd_dims_eff, heights, hh)
 
         assert len(np.array(times)[cases_idx]) == len(ws)
         assert len(wd) == len(ws)
@@ -613,8 +645,7 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
         else:
             site = Hornsrev1Site()
             if "density" in wind_resource:
-                density_vals, _ = _mean_over_turbines(*get_resource_data("density"))
-                site.ds["Air_density"] = (("time",), density_vals)
+                site.ds["Air_density"] = (("time",), get_density_series(hh))
 
         # Handle TI (kept per-turbine here; PyWake accepts turbine-resolved TI)
         if "turbulence_intensity" not in wind_resource:
@@ -710,7 +741,12 @@ def _mean_over_turbines(vals, dims):
 
 def _interp_along_height(vals, dims, heights, target_height, min_val=None):
     """Interpolate a resource variable to target_height along its declared
-    height dim; variables without a height dim pass through unchanged."""
+    height dim; variables without a height dim pass through unchanged.
+
+    min_val is a floor applied only when target_height lies outside the
+    declared height range (i.e. only to extrapolated values); in-range data
+    is never clamped.
+    """
     if "height" not in dims:
         return vals
     if heights is None:
@@ -721,9 +757,22 @@ def _interp_along_height(vals, dims, heights, target_height, min_val=None):
     out = interp1d(heights, vals, axis=dims.index("height"), fill_value="extrapolate")(
         target_height
     )
-    if min_val is not None:
+    if min_val is not None and not (
+        np.min(heights) <= target_height <= np.max(heights)
+    ):
         out = np.maximum(out, min_val)
     return out
+
+
+def _interp_direction_along_height(vals, dims, heights, target_height):
+    """Interpolate wind direction to target_height via its sine/cosine
+    components, so the 0/360 wraparound cannot produce spurious directions."""
+    if "height" not in dims:
+        return vals
+    rads = np.deg2rad(np.asarray(vals, dtype=float))
+    sin_int = _interp_along_height(np.sin(rads), dims, heights, target_height)
+    cos_int = _interp_along_height(np.cos(rads), dims, heights, target_height)
+    return np.mod(np.rad2deg(np.arctan2(sin_int, cos_int)), 360)
 
 
 def configure_wake_model(system_dat, rotor_diameter, hub_height):

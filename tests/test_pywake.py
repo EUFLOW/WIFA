@@ -820,23 +820,55 @@ def test_farm_turbine_specs_resolution_rules():
     specs, per_pos = _farm_turbine_specs(farm)
     assert [specs[i]["name"] for i in per_pos] == ["B", "A"]
 
-    # one entry matches a key, the other doesn't: ambiguous, must raise
-    # (a wholesale positional fallback would flip the matched entry's spec)
+    # not all entries match keys, but all are valid 0-based indices:
+    # positional interpretation with a loud per-entry warning (main-branch
+    # semantics; supports 1-based keys used with 0-based indices)
     farm = {
         "name": "f",
         "layouts": [dict(layout, turbine_types=[0, 1])],
         "turbine_types": {2: spec_a, 0: spec_b},
     }
-    with pytest.raises(ValueError, match="do not match"):
-        _farm_turbine_specs(farm)
+    with pytest.warns(UserWarning, match="positional indices"):
+        specs, per_pos = _farm_turbine_specs(farm)
+    assert [specs[i]["name"] for i in per_pos] == ["A", "B"]
 
-    # booleans must not be accepted as positional indices
+    # 1-based integer keys with 0-based positional entries resolve positionally
     farm = {
         "name": "f",
-        "layouts": [dict(layout, turbine_types=[True, False])],
+        "layouts": [dict(layout, turbine_types=[0, 1])],
+        "turbine_types": {1: spec_a, 2: spec_b},
+    }
+    with pytest.warns(UserWarning, match="positional indices"):
+        specs, per_pos = _farm_turbine_specs(farm)
+    assert [specs[i]["name"] for i in per_pos] == ["A", "B"]
+
+    # integer entries resolve to quoted string keys via coercion
+    farm = {
+        "name": "f",
+        "layouts": [dict(layout, turbine_types=[1, 2])],
+        "turbine_types": {"1": spec_a, "2": spec_b},
+    }
+    specs, per_pos = _farm_turbine_specs(farm)
+    assert [specs[i]["name"] for i in per_pos] == ["A", "B"]
+
+    # booleans are rejected outright, even when they would alias integer
+    # keys 0/1 through dict hashing
+    for type_map in ({"a": spec_a, "b": spec_b}, {0: spec_a, 1: spec_b}):
+        farm = {
+            "name": "f",
+            "layouts": [dict(layout, turbine_types=[True, False])],
+            "turbine_types": type_map,
+        }
+        with pytest.raises(ValueError, match="boolean"):
+            _farm_turbine_specs(farm)
+
+    # entries matching nothing and not valid indices raise
+    farm = {
+        "name": "f",
+        "layouts": [dict(layout, turbine_types=[0, 5])],
         "turbine_types": {"a": spec_a, "b": spec_b},
     }
-    with pytest.raises(ValueError, match="do not match"):
+    with pytest.raises(ValueError, match="neither match"):
         _farm_turbine_specs(farm)
 
 
@@ -896,6 +928,68 @@ def test_pywake_timeseries_ti_2d_without_dims(tmp_path):
 
     aep = run_pywake(system, output_dir=str(tmp_path))
     assert np.isfinite(aep) and aep > 0
+
+
+def test_interp_helpers_floor_and_wraparound():
+    """The extrapolation floor must not clamp in-range values, and direction
+    interpolation must respect the 0/360 wraparound."""
+    from wifa.pywake_api import _interp_along_height, _interp_direction_along_height
+
+    heights = [80.0, 140.0]
+    ti = np.array([[0.01, 0.01]])  # (time, height), legitimately below 0.02
+
+    # in-range target: no clamping
+    out = _interp_along_height(ti, ["time", "height"], heights, 110.0, min_val=0.02)
+    npt.assert_allclose(out, 0.01)
+
+    # out-of-range target: floor applies
+    ws = np.array([[5.0, 8.0]])  # strong shear; extrapolates negative below
+    out = _interp_along_height(ws, ["time", "height"], heights, 10.0, min_val=0.0)
+    assert np.all(out >= 0.0)
+
+    # 350 deg at 80 m and 10 deg at 140 m must interpolate near 0/360,
+    # not to 180
+    wd = np.array([[350.0, 10.0]])
+    out = _interp_direction_along_height(wd, ["time", "height"], heights, 110.0)
+    assert np.all((out >= 350.0) | (out <= 10.0))
+
+
+def test_pywake_timeseries_density_with_height_dim(tmp_path):
+    """Height-resolved density must be interpolated to hub height, not crash
+    XRSite with a 2-D ('time',) assignment."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    n_times = len(system["site"]["energy_resource"]["wind_resource"]["time"])
+    resource = _with_height_profile_resource(system, n_times)
+    resource["density"] = {
+        "data": [[1.25, 1.22] for _ in range(n_times)],
+        "dims": ["time", "height"],
+    }
+    del resource["operating"]
+    _with_two_types(system)
+
+    aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
+def test_pywake_timeseries_ambiguous_undeclared_dims(tmp_path):
+    """2-D data without declared dims whose axis lengths cannot distinguish
+    height from turbine must raise, asking for explicit dims."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    resource = system["site"]["energy_resource"]["wind_resource"]
+    n_times = len(resource["time"])
+    resource["height"] = [80.0, 140.0, 200.0]  # 3 heights == 3 turbines
+    resource["wind_speed"] = {
+        "data": [[8.0, 8.5, 9.0] for _ in range(n_times)]  # no dims key
+    }
+    del resource["operating"]
+    _with_two_types(system)
+
+    with pytest.raises(ValueError, match="declare its 'dims'"):
+        run_pywake(system, output_dir=str(tmp_path))
 
 
 def test_pywake_timeseries_height_dim_without_heights_coord(tmp_path):
