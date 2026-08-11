@@ -88,7 +88,7 @@ def test_foxes_timeseries_with_operating_flag():
     _run_foxes(wes_dir)
 
 
-def test_foxes_multiple_farms():
+def test_foxes_multiple_farms(tmp_path=Path("output_test_foxes_multifarm")):
     from importlib.metadata import version
 
     from packaging.version import Version
@@ -105,10 +105,7 @@ def test_foxes_multiple_farms():
         / "../examples/cases/multiple_wind_farms/wind_energy_system/system.yaml"
     )
     validate_yaml(yaml_input, Path("plant/wind_energy_system"))
-    output_dir = Path("output_test_foxes_multifarm")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    farm_results = run_foxes(yaml_input, output_dir=output_dir)[0]
-    rmtree(output_dir)
+    farm_results = run_foxes(yaml_input, output_dir=tmp_path)[0]
 
     # All three ROWP farms (33 + 33 + 34 turbines) are simulated together
     assert farm_results[FV.P].shape[1] == 100

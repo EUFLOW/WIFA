@@ -803,6 +803,173 @@ def test_pywake_timeseries_turbine_first_dims(tmp_path):
     assert np.isfinite(aep) and aep > 0
 
 
+def test_farm_turbine_specs_resolution_rules():
+    """Key resolution: exact keys always win over string coercion; mixed
+    key/positional resolution raises; booleans are not positional indices."""
+    from wifa.pywake_api import _farm_turbine_specs
+
+    layout = {"coordinates": {"x": [0.0, 1.0], "y": [0.0, 0.0]}}
+    spec_a, spec_b = {"name": "A"}, {"name": "B"}
+
+    # keys 1 and "1" are distinct; each entry must resolve to its exact key
+    farm = {
+        "name": "f",
+        "layouts": [dict(layout, turbine_types=["1", 1])],
+        "turbine_types": {1: spec_a, "1": spec_b},
+    }
+    specs, per_pos = _farm_turbine_specs(farm)
+    assert [specs[i]["name"] for i in per_pos] == ["B", "A"]
+
+    # one entry matches a key, the other doesn't: ambiguous, must raise
+    # (a wholesale positional fallback would flip the matched entry's spec)
+    farm = {
+        "name": "f",
+        "layouts": [dict(layout, turbine_types=[0, 1])],
+        "turbine_types": {2: spec_a, 0: spec_b},
+    }
+    with pytest.raises(ValueError, match="do not match"):
+        _farm_turbine_specs(farm)
+
+    # booleans must not be accepted as positional indices
+    farm = {
+        "name": "f",
+        "layouts": [dict(layout, turbine_types=[True, False])],
+        "turbine_types": {"a": spec_a, "b": spec_b},
+    }
+    with pytest.raises(ValueError, match="do not match"):
+        _farm_turbine_specs(farm)
+
+
+def test_specs_equal_zero_dim_arrays():
+    """0-d numpy arrays (e.g. values read from netCDF) must compare as
+    scalars instead of raising 'iteration over a 0-d array'."""
+    from wifa.pywake_api import _specs_equal
+
+    assert _specs_equal(np.array(1.0), np.array(1.0))
+    assert _specs_equal(np.array(1.0), 1.0)
+    assert _specs_equal({"hh": np.array(119.0)}, {"hh": 119.0})
+    assert not _specs_equal(np.array(1.0), 2.0)
+
+
+def _with_height_profile_resource(system, n_times):
+    """Replace ws/wd in a conftest system dict with height-profile data."""
+    resource = system["site"]["energy_resource"]["wind_resource"]
+    resource["height"] = [80.0, 140.0]
+    resource["wind_speed"] = {
+        "data": [[8.0 + 0.1 * t, 9.0 + 0.1 * t] for t in range(n_times)],
+        "dims": ["time", "height"],
+    }
+    resource["wind_direction"] = {
+        "data": [[270.0, 272.0] for _ in range(n_times)],
+        "dims": ["time", "height"],
+    }
+    return resource
+
+
+def _with_two_types(system, delta_hh=20.0):
+    """Split the conftest single-type farm into two turbine types."""
+    import copy
+
+    farm = system["wind_farm"]
+    short = farm.pop("turbines")
+    tall = copy.deepcopy(short)
+    tall["name"] = short["name"] + " tall"
+    tall["hub_height"] = short["hub_height"] + delta_hh
+    farm["turbine_types"] = {1: short, 2: tall}
+    farm["layouts"][0]["turbine_types"] = [1, 1, 2]
+    return system
+
+
+def test_pywake_timeseries_ti_2d_without_dims(tmp_path):
+    """2-D (time, height) TI data with no declared dims must be recognized as
+    height-resolved when the resource declares a height coordinate."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    n_times = len(system["site"]["energy_resource"]["wind_resource"]["time"])
+    resource = _with_height_profile_resource(system, n_times)
+    resource["turbulence_intensity"] = {
+        "data": [[0.06, 0.08] for _ in range(n_times)]  # no "dims" key
+    }
+    del resource["operating"]
+    _with_two_types(system)
+
+    aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
+def test_pywake_timeseries_height_dim_without_heights_coord(tmp_path):
+    """A variable declaring a height dim while the resource has no height
+    coordinate must raise a clear ValueError, not an opaque scipy error."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    resource = system["site"]["energy_resource"]["wind_resource"]
+    n_times = len(resource["time"])
+    resource["turbulence_intensity"] = {
+        "data": [[0.06, 0.08] for _ in range(n_times)],
+        "dims": ["time", "height"],
+    }
+    del resource["operating"]
+    _with_two_types(system)
+
+    with pytest.raises(ValueError, match="height"):
+        run_pywake(system, output_dir=str(tmp_path))
+
+
+def test_pywake_timeseries_height_first_dims_equivalent(tmp_path):
+    """dims ['height','time'] must give the same result as ['time','height'],
+    including when a times_run subset selects exactly as many timesteps as
+    there are heights (the axis-guessing poison case)."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    def build(height_first):
+        system = make_timeseries_per_turbine_system_dict("pywake")
+        resource = _with_height_profile_resource(
+            system, len(system["site"]["energy_resource"]["wind_resource"]["time"])
+        )
+        n_times = len(resource["time"])
+        if height_first:
+            for var in ("wind_speed", "wind_direction"):
+                data = np.array(resource[var]["data"])
+                resource[var] = {
+                    "data": data.T.tolist(),
+                    "dims": ["height", "time"],
+                }
+        del resource["operating"]
+        # subset of exactly len(height)=2 timesteps
+        subset = [True, True] + [False] * (n_times - 2)
+        system["attributes"]["model_outputs_specification"]["run_configuration"] = {
+            "times_run": {"all_occurences": False, "subset": subset}
+        }
+        return _with_two_types(system)
+
+    aep_th = run_pywake(build(False), output_dir=str(tmp_path / "th"))
+    aep_ht = run_pywake(build(True), output_dir=str(tmp_path / "ht"))
+    npt.assert_allclose(aep_ht, aep_th, rtol=1e-9)
+
+
+def test_pywake_timeseries_hub_height_outside_resource_heights(tmp_path):
+    """A hub height outside the resource height range must extrapolate
+    (consistently with the multi-type branch) instead of crashing."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system = make_timeseries_per_turbine_system_dict("pywake")
+    resource = _with_height_profile_resource(
+        system, len(system["site"]["energy_resource"]["wind_resource"]["time"])
+    )
+    resource["height"] = [150.0, 200.0]  # hub height 119 m is below the range
+    n_times = len(resource["time"])
+    resource["turbulence_intensity"] = {
+        "data": [[0.06, 0.08] for _ in range(n_times)],
+        "dims": ["time", "height"],
+    }
+    del resource["operating"]
+
+    aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
 def test_pywake_timeseries_two_types_same_hub_height(tmp_path):
     """Two turbine types sharing one hub height on the time-series path must
     not crash on the height-deduplication (regression: xarray dim conflict)."""
