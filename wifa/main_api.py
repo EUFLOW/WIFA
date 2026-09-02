@@ -23,13 +23,13 @@ def run_api(yaml_input):
     model_name = yaml_dat["attributes"]["flow_model"]["name"]
 
     if model_name.lower() == "pywake":
-        run_pywake(yaml_dat)
+        return run_pywake(yaml_dat)
 
     elif model_name.lower() == "foxes":
-        run_foxes(yaml_dat)
+        return run_foxes(yaml_dat)
 
     elif model_name.lower() == "floris":
-        run_floris(yaml_dat)
+        return run_floris(yaml_dat)
 
     elif model_name.lower() == "wayve":
         output_dir_name = yaml_dat["attributes"]["model_outputs_specification"][
@@ -38,10 +38,10 @@ def run_api(yaml_input):
         if not os.path.exists(output_dir_name):
             os.makedirs(output_dir_name)
 
-        run_wayve(yaml_dat, output_dir_name)
+        return run_wayve(yaml_dat, output_dir_name)
 
     elif model_name.lower() == "codesaturne":
-        run_code_saturne(yaml_dat, test_mode=True)
+        return run_code_saturne(yaml_dat, test_mode=True)
 
     else:
         print("Invalid Model")
