@@ -567,7 +567,7 @@ def test_pywake_timeseries_ti_reaches_hornsrev_site(tmp_path):
         # TI-dependent wake expansion so the AEP is sensitive to TI
         system["attributes"]["analysis"]["wind_deficit_model"][
             "wake_expansion_coefficient"
-        ] = {"k_a": 0.6, "k_b": 0.01}
+        ] = {"k_a": 0.5, "k_b": 0.5}
         return system
 
     aep_low = run_pywake(build(0.03), output_dir=str(tmp_path / "low"))
