@@ -407,6 +407,31 @@ def get_flow_field_param(system_dat, param_name, default=None):
         return default
 
 
+def _site_bounds(boundaries):
+    """Bounding box (xlb, xub, ylb, yub) of the windIO site boundaries.
+
+    Supports both boundary types of the windIO site schema: a group of
+    polygons, or a circle with center and radius.
+    """
+    if "polygons" in boundaries:
+        xs = np.concatenate([np.atleast_1d(p["x"]) for p in boundaries["polygons"]])
+        ys = np.concatenate([np.atleast_1d(p["y"]) for p in boundaries["polygons"]])
+        return np.min(xs), np.max(xs), np.min(ys), np.max(ys)
+    if "circle" in boundaries:
+        center = boundaries["circle"]["center"]
+        radius = boundaries["circle"]["radius"]
+        return (
+            center["x"] - radius,
+            center["x"] + radius,
+            center["y"] - radius,
+            center["y"] + radius,
+        )
+    raise ValueError(
+        "Site boundaries must define either 'polygons' or 'circle', "
+        f"got: {list(boundaries)}"
+    )
+
+
 def construct_site(system_dat, resource_dat, hub_heights, x_positions):
     """Construct site object and wind conditions for simulation.
 
@@ -425,11 +450,7 @@ def construct_site(system_dat, resource_dat, hub_heights, x_positions):
     from windIO import dict_to_netcdf
 
     # Get flow field bounds from config or site boundaries
-    boundaries = system_dat["site"]["boundaries"]["polygons"][0]
-    WFXLB = np.min(boundaries["x"])
-    WFXUB = np.max(boundaries["x"])
-    WFYLB = np.min(boundaries["y"])
-    WFYUB = np.max(boundaries["y"])
+    WFXLB, WFXUB, WFYLB, WFYUB = _site_bounds(system_dat["site"]["boundaries"])
 
     # Override with explicit flow field bounds if specified
     WFXLB = get_flow_field_param(system_dat, "xlb", WFXLB)

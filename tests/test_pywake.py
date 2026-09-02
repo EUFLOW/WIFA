@@ -1102,6 +1102,40 @@ def test_pywake_dict_timeseries_per_turbine_with_density(tmp_path):
     assert aep_with != aep_without
 
 
+def test_site_bounds_circle_and_polygons():
+    from wifa.pywake_api import _site_bounds
+
+    # Circle: bounding box is center +/- radius
+    assert _site_bounds(
+        {"circle": {"center": {"x": 100.0, "y": -50.0}, "radius": 500.0}}
+    ) == (-400.0, 600.0, -550.0, 450.0)
+
+    # Polygons: bounding box spans all polygons, not just the first
+    assert _site_bounds(
+        {
+            "polygons": [
+                {"x": [0, 10], "y": [0, 10]},
+                {"x": [-5, 3], "y": [2, 20]},
+            ]
+        }
+    ) == (-5, 10, 0, 20)
+
+    with pytest.raises(ValueError, match="polygons.*or.*circle"):
+        _site_bounds({})
+
+
+def test_pywake_circle_boundaries(tmp_path):
+    """Circle-based site boundaries run through pywake (GH issue #26)."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    system_dict = make_timeseries_per_turbine_system_dict("pywake")
+    system_dict["site"]["boundaries"] = {
+        "circle": {"center": {"x": 1250.0, "y": 0.0}, "radius": 1500.0}
+    }
+    aep = run_pywake(system_dict, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
 # if __name__ == "__main__":
 #    test_heterogeneous_wind_rose()
 #     simple_yaml_to_pywake('../examples/cases/windio_4turbines_multipleTurbines/plant_energy_turbine/IEA_10MW_turbine.yaml')
