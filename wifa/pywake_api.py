@@ -40,16 +40,20 @@ DEFAULTS = {
 def get_with_default(data, key, defaults):
     """
     Retrieve a value from a dictionary, using a default if the key is not present.
-    If the value is a dictionary, apply the same process recursively.
+    If the value is a dictionary, apply the same process recursively, keeping
+    every user-provided key (defaults only fill in the missing ones).
     """
     if key not in data:
-        print("WARNING: Using default value for ", key)
+        warnings.warn(f"Using default value for '{key}'")
         return defaults[key]
     elif isinstance(data[key], dict):
-        # For nested dictionaries, ensure all subkeys are checked for defaults
+        nested_defaults = defaults.get(key, {})
+        merged_keys = list(data[key]) + [
+            k for k in nested_defaults if k not in data[key]
+        ]
         return {
-            sub_key: get_with_default(data[key], sub_key, defaults[key])
-            for sub_key in defaults[key]
+            sub_key: get_with_default(data[key], sub_key, nested_defaults)
+            for sub_key in merged_keys
         }
     else:
         return data[key]
@@ -817,7 +821,7 @@ def configure_wake_model(system_dat, rotor_diameter, hub_height):
     blockage_data = get_with_default(analysis, "blockage_model", DEFAULTS)
 
     # Configure wind deficit model
-    deficit_args = {"use_effective_ws": True}
+    deficit_args = {"use_effective_ws": wind_deficit_data.get("use_effective_ws", True)}
     wake_deficit_key = None
 
     print("Running deficit ", wind_deficit_data)
