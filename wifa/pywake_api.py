@@ -388,6 +388,31 @@ def dict_to_site(resource_dict):
     return XRSite(resource_ds)
 
 
+def _boundary_extents(boundaries):
+    """Return (xlb, xub, ylb, yub) covering every boundary shape.
+
+    windIO site boundaries define either a list of polygons or a circle
+    ({center: {x, y}, radius}); both forms (and both together) are handled,
+    and every polygon contributes, not only the first.
+    """
+    xs, ys = [], []
+    for poly in boundaries.get("polygons", []):
+        xs.extend([np.min(poly["x"]), np.max(poly["x"])])
+        ys.extend([np.min(poly["y"]), np.max(poly["y"])])
+    if "circle" in boundaries:
+        circle = boundaries["circle"]
+        cx, cy = circle["center"]["x"], circle["center"]["y"]
+        radius = circle["radius"]
+        xs.extend([cx - radius, cx + radius])
+        ys.extend([cy - radius, cy + radius])
+    if not xs:
+        raise ValueError(
+            "site.boundaries defines neither 'polygons' nor 'circle'; "
+            "cannot derive flow-field bounds"
+        )
+    return min(xs), max(xs), min(ys), max(ys)
+
+
 def get_flow_field_param(system_dat, param_name, default=None):
     """Extract flow field parameter with safe nested access.
 
@@ -425,11 +450,7 @@ def construct_site(system_dat, resource_dat, hub_heights, x_positions):
     from windIO import dict_to_netcdf
 
     # Get flow field bounds from config or site boundaries
-    boundaries = system_dat["site"]["boundaries"]["polygons"][0]
-    WFXLB = np.min(boundaries["x"])
-    WFXUB = np.max(boundaries["x"])
-    WFYLB = np.min(boundaries["y"])
-    WFYUB = np.max(boundaries["y"])
+    WFXLB, WFXUB, WFYLB, WFYUB = _boundary_extents(system_dat["site"]["boundaries"])
 
     # Override with explicit flow field bounds if specified
     WFXLB = get_flow_field_param(system_dat, "xlb", WFXLB)

@@ -543,6 +543,42 @@ def test_pywake_multifarm_rowp_example(tmp_path):
     assert (tmp_path / "output.yaml").exists()
 
 
+def test_boundary_extents_shapes():
+    """windIO boundaries as polygons, circle, or both must all yield bounds
+    covering every shape (issue #26)."""
+    from wifa.pywake_api import _boundary_extents
+
+    polys = {
+        "polygons": [
+            {"x": [0, 100], "y": [0, 50]},
+            {"x": [200, 300], "y": [-40, 10]},
+        ]
+    }
+    assert _boundary_extents(polys) == (0, 300, -40, 50)
+
+    circle = {"circle": {"center": {"x": 10.0, "y": -5.0}, "radius": 100.0}}
+    assert _boundary_extents(circle) == (-90.0, 110.0, -105.0, 95.0)
+
+    both = dict(polys, **circle)
+    assert _boundary_extents(both) == (-90.0, 300, -105.0, 95)
+
+    with pytest.raises(ValueError, match="neither"):
+        _boundary_extents({})
+
+
+def test_pywake_circle_boundary(tmp_path):
+    """A site with a circle boundary instead of polygons must run (issue #26,
+    previously KeyError: 'polygons')."""
+    system = _two_farm_system_dict()
+    system["wind_farm"] = system["wind_farm"][0]  # single farm suffices
+    system["site"]["boundaries"] = {
+        "circle": {"center": {"x": 350.0, "y": 0.0}, "radius": 2000.0}
+    }
+
+    aep = run_pywake(system, output_dir=str(tmp_path))
+    assert np.isfinite(aep) and aep > 0
+
+
 def test_run_api_returns_pywake_result(tmp_path, monkeypatch):
     """run_api must pass through the runner's return value (the upstream ROWP
     example script does `results = run_api(...)`)."""
