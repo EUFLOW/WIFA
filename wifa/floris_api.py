@@ -46,6 +46,13 @@ def run_floris(yaml_input):
             f"yaml_input must be a file path or dict, got {type(yaml_input)}"
         )
 
+    if isinstance(windio_dict.get("wind_farm"), list):
+        raise NotImplementedError(
+            "floris does not support multiple wind farms yet; "
+            "provide a single wind_farm entry (multi-farm input is currently "
+            "supported by the pywake and foxes runners)"
+        )
+
     fmodel = FlorisModel.from_windio(windio_dict)
     fmodel.run()
 

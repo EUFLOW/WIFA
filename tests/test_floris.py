@@ -481,6 +481,15 @@ def test_floris_multiple_turbines(floris_config):
 # ============================================================================ #
 
 
+def test_floris_multifarm_not_implemented():
+    """A wind_farm list must raise a clear NotImplementedError, not a TypeError."""
+    yaml_input = (
+        CWD / "../examples/cases/multiple_wind_farms/wind_energy_system/system.yaml"
+    )
+    with pytest.raises(NotImplementedError, match="multiple wind farms"):
+        run_floris(str(yaml_input))
+
+
 @pytest.fixture(scope="session")
 def test_output_dir():
     """Shared test output directory fixture with automatic cleanup."""

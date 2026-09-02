@@ -38,7 +38,7 @@ classifiers = [
 ]
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "windIO @ git+https://github.com/EUFlow/windIO.git",
+    "windIO @ git+https://github.com/IEAWindSystems/windIO.git@4a61df862d56a12b328e76be1261eaa5d622eb84",
     "xarray",
     "scipy",
     "pyyaml",
@@ -46,10 +46,10 @@ dependencies = [
 
 [project.optional-dependencies]
 py_wake = ["py_wake>=2.6.5"]
-foxes = ["foxes @ git+https://github.com/FraunhoferIWES/foxes.git@eu_flow"]
-floris = ["floris @ git+https://github.com/lejeunemax/floris.git"]
+foxes = ["foxes @ git+https://github.com/FraunhoferIWES/foxes.git@5fcbffeca0fd9636be651dba0bd9c297108b1ab4"]
+floris = ["floris @ git+https://github.com/lejeunemax/floris.git@4f367c3975b52a82b38c385d5c7561dc2b600d01"]
 wayve = [
-    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve",
+    "wayve @ git+https://gitlab.kuleuven.be/TFSO-software/wayve@e87780a21048bfd8987ff5ee391ed0265a7ca0fc",
     "mpmath",
 ]
 cs = []  # code_saturne is a subprocess, no pip dependency

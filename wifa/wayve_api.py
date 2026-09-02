@@ -32,6 +32,12 @@ def run_wayve(yamlFile, output_dir="output", debug_mode=False):
         system_dat = load_yaml(yamlFile)
     # WindIO components
     farm_dat = system_dat["wind_farm"]
+    if isinstance(farm_dat, list):
+        raise NotImplementedError(
+            "wayve does not support multiple wind farms yet; "
+            "provide a single wind_farm entry (multi-farm input is currently "
+            "supported by the pywake and foxes runners)"
+        )
     resource_dat = system_dat["site"]["energy_resource"]
     analysis_dat = system_dat["attributes"]["analysis"]
 

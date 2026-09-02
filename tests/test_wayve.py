@@ -27,5 +27,15 @@ def test_wayve_4wts():
     run_wayve(yaml_input, output_dir=output_dir_name, debug_mode=True)
 
 
+def test_wayve_multifarm_not_implemented():
+    """A wind_farm list must raise a clear NotImplementedError, not a TypeError."""
+    yaml_input = (
+        test_path
+        / "../examples/cases/multiple_wind_farms/wind_energy_system/system.yaml"
+    )
+    with pytest.raises(NotImplementedError, match="multiple wind farms"):
+        run_wayve(yaml_input, output_dir="output_test_wayve_multifarm")
+
+
 if __name__ == "__main__":
     test_wayve_4wts()

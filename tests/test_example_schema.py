@@ -50,6 +50,11 @@ def test_awaken_schema(base_path, windio_path, schema_path):
     validate_system_yaml(base_path, "AWAKEN", windio_path, schema_path)
 
 
+def test_multiple_wind_farms_schema(base_path, windio_path, schema_path):
+    """Test multi-farm (IEA 22MW reference offshore wind plant) case schema"""
+    validate_system_yaml(base_path, "multiple_wind_farms", windio_path, schema_path)
+
+
 def test_kul_les_schema(base_path, windio_path, schema_path):
     """Test KUL_LES case schema"""
     validate_system_yaml(base_path, "KUL_LES", windio_path, schema_path)

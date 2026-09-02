@@ -1040,6 +1040,12 @@ class CS_study:
         ####################### LAYOUT and TURBINE DATA ############################
         #
         farm_layout_data = self.wind_system_data["wind_farm"]
+        if isinstance(farm_layout_data, list):
+            raise NotImplementedError(
+                "code_saturne does not support multiple wind farms yet; "
+                "provide a single wind_farm entry (multi-farm input is "
+                "currently supported by the pywake and foxes runners)"
+            )
 
         center_farm = True
 

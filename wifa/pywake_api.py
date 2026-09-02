@@ -86,98 +86,251 @@ def load_and_validate_config(yaml_input, default_output_dir="output"):
     return system_dat, output_dir
 
 
-def create_turbines(farm_dat):
-    """Create turbine objects from farm configuration.
+def _farm_layout(farm_dat):
+    """Return the first layout of a farm (layouts may be a dict or a list)."""
+    layouts = farm_dat["layouts"]
+    return layouts[0] if isinstance(layouts, list) else layouts
 
-    Args:
-        farm_dat: Farm data dictionary containing turbine specifications
 
-    Returns:
-        tuple: (turbine, turbine_types, hub_heights) where:
-            - turbine: WindTurbine or WindTurbines object
-            - turbine_types: int (0) for single turbine or list of types
-            - hub_heights: dict mapping type names to hub heights
+def _farm_turbine_specs(farm_dat):
+    """Return (turbine_specs, per_position_type_idx) for one farm.
+
+    turbine_specs is the list of raw windIO turbine dicts used by the farm;
+    per_position_type_idx maps each turbine position to an index into that list.
     """
-    from py_wake.wind_turbines import WindTurbine, WindTurbines
+    layout = _farm_layout(farm_dat)
+    n_positions = len(layout["coordinates"]["x"])
+    if "turbines" in farm_dat:
+        specs = [farm_dat["turbines"]]
+        per_pos = [0] * n_positions
+    else:
+        type_map = farm_dat["turbine_types"]
+        keys = list(type_map.keys())
+        specs = [type_map[k] for k in keys]
+        if "turbine_types" in layout:
+            # Layout entries are keys into the turbine_types mapping (windIO
+            # allows arbitrary keys, e.g. 1-based). Resolution rules:
+            # 1. If every entry resolves as a mapping key (exact match first;
+            #    a string/number coercion like 1 vs "1" is consulted only when
+            #    it does not shadow a different real key), use key semantics.
+            # 2. Otherwise, if every entry is a valid 0-based integer index,
+            #    interpret positionally (the windIO schema also describes the
+            #    entries as integer indices) and warn with the per-entry
+            #    assignment so nothing is reinterpreted silently.
+            # 3. Otherwise raise. YAML booleans are rejected outright: they
+            #    would alias integer keys/indices 0 and 1.
+            entries = list(layout["turbine_types"])
+            if any(isinstance(k, (bool, np.bool_)) for k in entries):
+                raise ValueError(
+                    f"Layout turbine_types of farm "
+                    f"'{farm_dat.get('name', '?')}' contains boolean entries "
+                    f"({entries!r}); booleans are neither mapping keys nor "
+                    "positional indices"
+                )
+            exact = {k: i for i, k in enumerate(keys)}
+            coerced = {}
+            for i, k in enumerate(keys):
+                s = str(k)
+                if s in exact and exact[s] != i:
+                    continue  # a different key claims this literal
+                if s not in coerced:
+                    coerced[s] = i
+
+            def _resolve(entry):
+                idx = exact.get(entry)
+                if idx is None:
+                    idx = coerced.get(str(entry))
+                return idx
+
+            resolved = [_resolve(k) for k in entries]
+            positional_ok = all(
+                isinstance(k, (int, np.integer)) and 0 <= k < len(specs)
+                for k in entries
+            )
+            if all(idx is not None for idx in resolved):
+                per_pos = resolved
+            elif positional_ok:
+                per_pos = [int(k) for k in entries]
+                assignment = {
+                    str(k): specs[i].get("name", i) for k, i in zip(entries, per_pos)
+                }
+                warnings.warn(
+                    f"Farm '{farm_dat.get('name', '?')}': layout turbine_types "
+                    "entries do not all match the turbine_types mapping keys; "
+                    f"interpreting them as 0-based positional indices "
+                    f"({assignment})"
+                )
+            else:
+                bad = sorted(
+                    {k for k, idx in zip(entries, resolved) if idx is None},
+                    key=str,
+                )
+                raise ValueError(
+                    f"Layout turbine types {bad!r} of farm "
+                    f"'{farm_dat.get('name', '?')}' neither match its "
+                    f"turbine_types mapping keys ({keys}) nor form valid "
+                    "0-based positional indices"
+                )
+        elif len(specs) == 1:
+            per_pos = [0] * n_positions
+        else:
+            raise ValueError(
+                f"Farm '{farm_dat.get('name', '?')}' has multiple turbine_types "
+                "but its layout does not specify a turbine type per position"
+            )
+    if len(per_pos) != n_positions:
+        raise ValueError(
+            f"Farm '{farm_dat.get('name', '?')}' has {n_positions} turbine "
+            f"positions but {len(per_pos)} layout turbine_types entries"
+        )
+    return specs, per_pos
+
+
+def create_turbine(turbine_dat):
+    """Create a PyWake WindTurbine from a windIO turbine dict."""
+    from py_wake.wind_turbines import WindTurbine
     from py_wake.wind_turbines.power_ct_functions import (
         PowerCtFunctionList,
         PowerCtTabular,
     )
 
-    # Handle single vs multiple turbine types
-    if "turbines" in farm_dat:
-        turbine_dats = [farm_dat["turbines"]]
-        type_names = "0"
+    hh = turbine_dat["hub_height"]
+    rd = turbine_dat["rotor_diameter"]
+
+    # Parse power/Cp curves
+    if "Cp_curve" in turbine_dat["performance"]:
+        cp = turbine_dat["performance"]["Cp_curve"]["Cp_values"]
+        cp_ws = turbine_dat["performance"]["Cp_curve"]["Cp_wind_speeds"]
+        power_curve_type = "cp"
+    elif "power_curve" in turbine_dat["performance"]:
+        cp_ws = turbine_dat["performance"]["power_curve"]["power_wind_speeds"]
+        pows = turbine_dat["performance"]["power_curve"]["power_values"]
+        power_curve_type = "power"
     else:
-        turbine_dats = [
-            farm_dat["turbine_types"][key] for key in farm_dat["turbine_types"]
-        ]
-        type_names = list(farm_dat["turbine_types"].keys())
+        raise ValueError("Missing Cp_curve or power_curve in turbine performance data")
 
-    turbines = []
-    hub_heights = {}
+    ct = turbine_dat["performance"]["Ct_curve"]["Ct_values"]
+    ct_ws = turbine_dat["performance"]["Ct_curve"]["Ct_wind_speeds"]
+    speeds = np.arange(np.min([cp_ws, ct_ws]), np.max([cp_ws, ct_ws]) + 1, 1)
+    cts_int = np.interp(speeds, ct_ws, ct)
 
-    for turbine_dat, key in zip(turbine_dats, type_names):
-        hh = turbine_dat["hub_height"]
-        rd = turbine_dat["rotor_diameter"]
-        hub_heights[key] = hh
+    if power_curve_type == "power":
+        powers = np.interp(speeds, cp_ws, pows)
+    else:
+        cps_int = np.interp(speeds, cp_ws, cp)
+        powers = 0.5 * cps_int * speeds**3 * 1.225 * (rd / 2) ** 2 * np.pi
 
-        # Parse power/Cp curves
-        if "Cp_curve" in turbine_dat["performance"]:
-            cp = turbine_dat["performance"]["Cp_curve"]["Cp_values"]
-            cp_ws = turbine_dat["performance"]["Cp_curve"]["Cp_wind_speeds"]
-            power_curve_type = "cp"
-        elif "power_curve" in turbine_dat["performance"]:
-            cp_ws = turbine_dat["performance"]["power_curve"]["power_wind_speeds"]
-            pows = turbine_dat["performance"]["power_curve"]["power_values"]
-            power_curve_type = "power"
-        else:
-            raise ValueError(
-                "Missing Cp_curve or power_curve in turbine performance data"
-            )
+    cutin = turbine_dat["performance"].get("cutin_wind_speed", 0)
+    cutout = turbine_dat["performance"].get("cutout_wind_speed")
 
-        ct = turbine_dat["performance"]["Ct_curve"]["Ct_values"]
-        ct_ws = turbine_dat["performance"]["Ct_curve"]["Ct_wind_speeds"]
-        speeds = np.arange(np.min([cp_ws, ct_ws]), np.max([cp_ws, ct_ws]) + 1, 1)
-        cts_int = np.interp(speeds, ct_ws, ct)
+    this_turbine = WindTurbine(
+        name=turbine_dat["name"],
+        diameter=rd,
+        hub_height=hh,
+        powerCtFunction=PowerCtTabular(speeds, powers, power_unit="W", ct=cts_int),
+        ws_cutin=cutin,
+        ws_cutout=cutout,
+    )
+    this_turbine.powerCtFunction = PowerCtFunctionList(
+        key="operating",
+        powerCtFunction_lst=[
+            PowerCtTabular(
+                ws=[0, 100], power=[0, 0], power_unit="w", ct=[0, 0]
+            ),  # 0=No power and ct
+            this_turbine.powerCtFunction,
+        ],  # 1=Normal operation
+        default_value=1,
+    )
+    return this_turbine
 
-        if power_curve_type == "power":
-            powers = np.interp(speeds, cp_ws, pows)
-        else:
-            cps_int = np.interp(speeds, cp_ws, cp)
-            powers = 0.5 * cps_int * speeds**3 * 1.225 * (rd / 2) ** 2 * np.pi
 
-        cutin = turbine_dat["performance"].get("cutin_wind_speed", 0)
-        cutout = turbine_dat["performance"].get("cutout_wind_speed")
+def _specs_equal(a, b):
+    """Compare two turbine spec fragments, tolerating numpy arrays and NaNs.
 
-        this_turbine = WindTurbine(
-            name=turbine_dat["name"],
-            diameter=rd,
-            hub_height=hh,
-            powerCtFunction=PowerCtTabular(speeds, powers, power_unit="W", ct=cts_int),
-            ws_cutin=cutin,
-            ws_cutout=cutout,
+    Plain dict equality raises "ambiguous truth value" when dict-input callers
+    supply curves as numpy arrays, and NaN placeholders must compare equal to
+    themselves so identical specs are recognized as identical.
+    """
+    if a is b:
+        return True
+    if isinstance(a, np.ndarray) and a.ndim == 0:
+        a = a.item()
+    if isinstance(b, np.ndarray) and b.ndim == 0:
+        b = b.item()
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_specs_equal(a[k], b[k]) for k in a)
+    a_is_seq = isinstance(a, (list, tuple, np.ndarray))
+    b_is_seq = isinstance(b, (list, tuple, np.ndarray))
+    if a_is_seq or b_is_seq:
+        if not (a_is_seq and b_is_seq):
+            return False
+        a_list, b_list = list(a), list(b)
+        return len(a_list) == len(b_list) and all(
+            _specs_equal(x, y) for x, y in zip(a_list, b_list)
         )
-        this_turbine.powerCtFunction = PowerCtFunctionList(
-            key="operating",
-            powerCtFunction_lst=[
-                PowerCtTabular(
-                    ws=[0, 100], power=[0, 0], power_unit="w", ct=[0, 0]
-                ),  # 0=No power and ct
-                this_turbine.powerCtFunction,
-            ],  # 1=Normal operation
-            default_value=1,
-        )
-        turbines.append(this_turbine)
+    try:
+        if np.isnan(a) and np.isnan(b):
+            return True
+    except (TypeError, ValueError):
+        pass
+    return bool(a == b)
+
+
+def _build_multifarm_turbines(farms):
+    """Build turbine objects spanning one or more farms.
+
+    Turbine specs that appear in several farms are merged when they are
+    identical; reusing a turbine name for a different spec is an error.
+
+    Returns:
+        turbine: WindTurbine (single type) or WindTurbines (multi-type)
+        turbine_types: 0 or array length sum(N_i) — global type index per turbine
+        hub_heights: dict mapping global type index (str) to hub height
+        farm_slices: list of slice() objects, one per farm, indexing the global turbine axis
+        rotor_diameter: rotor diameter of the first turbine type
+    """
+    from py_wake.wind_turbines import WindTurbines
+
+    merged_specs = []
+    type_indices = []
+    farm_slices = []
+    cursor = 0
+
+    for farm_dat in farms:
+        specs, per_pos = _farm_turbine_specs(farm_dat)
+
+        local_to_global = []
+        for spec in specs:
+            for global_idx, seen in enumerate(merged_specs):
+                if seen["name"] == spec["name"]:
+                    if not _specs_equal(seen, spec):
+                        raise ValueError(
+                            f"Turbine '{spec['name']}' is defined differently "
+                            "in different farms"
+                        )
+                    local_to_global.append(global_idx)
+                    break
+            else:
+                merged_specs.append(spec)
+                local_to_global.append(len(merged_specs) - 1)
+
+        type_indices.extend(local_to_global[i] for i in per_pos)
+        farm_slices.append(slice(cursor, cursor + len(per_pos)))
+        cursor += len(per_pos)
+
+    turbines = [create_turbine(spec) for spec in merged_specs]
+    hub_heights = {str(i): spec["hub_height"] for i, spec in enumerate(merged_specs)}
+    rotor_diameter = merged_specs[0]["rotor_diameter"]
 
     if len(turbines) == 1:
-        turbine = turbines[0]
-        turbine_types = 0
-    else:
-        turbine = WindTurbines.from_WindTurbine_lst(turbines)
-        turbine_types = farm_dat["layouts"][0]["turbine_types"]
-
-    return turbine, turbine_types, hub_heights
+        return turbines[0], 0, hub_heights, farm_slices, rotor_diameter
+    return (
+        WindTurbines.from_WindTurbine_lst(turbines),
+        np.asarray(type_indices),
+        hub_heights,
+        farm_slices,
+        rotor_diameter,
+    )
 
 
 def dict_to_site(resource_dict):
@@ -353,47 +506,72 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
                 cases_idx = run_config["times_run"]["subset"]
 
     heights = wind_resource.get("height")
+    n_cases = len(np.arange(len(times))[cases_idx])
 
-    # Helper to get data and dimensions safely
-    def get_resource_data(var_name):
+    # Helper to get time-subset data and dimensions safely, honoring the
+    # declared dims order rather than assuming time is the leading axis
+    def get_resource_data(var_name, default_dims=("time",)):
         data_obj = wind_resource[var_name]
         vals = np.array(data_obj["data"])
-        dims = data_obj.get("dims", ["time"])
+        dims = list(data_obj.get("dims", default_dims))
+        if heights is not None and vals.ndim == len(dims) + 1 and "height" not in dims:
+            # dims underspecified (e.g. 2-D data with no dims declared): the
+            # extra axis is taken as height only when its length matches the
+            # height coordinate and cannot be the turbine axis instead;
+            # anything ambiguous must declare dims explicitly
+            n_h = len(heights)
+            n_wt = len(x_positions)
+            if vals.shape[-1] == n_h and n_h != n_wt:
+                dims = dims + ["height"]
+            elif vals.shape[0] == n_h and vals.shape[-1] != n_h and n_h != n_wt:
+                dims = ["height"] + dims
+            else:
+                raise ValueError(
+                    f"Cannot infer the dimensions of wind_resource variable "
+                    f"'{var_name}' with shape {vals.shape}: declare its "
+                    "'dims' explicitly"
+                )
+        if "time" in dims:
+            time_sel = np.arange(len(times))[cases_idx]
+            vals = np.take(vals, time_sel, axis=dims.index("time"))
         return vals, dims
 
-    # Extract raw data
+    def get_density_series(target_height):
+        density_vals, density_dims = _mean_over_turbines(*get_resource_data("density"))
+        return _interp_along_height(density_vals, density_dims, heights, target_height)
+
+    # Extract raw data (time-subset)
     ws_vals, ws_dims = get_resource_data("wind_speed")
     wd_vals, wd_dims = get_resource_data("wind_direction")
 
-    # Apply subsetting
-    ws_vals = ws_vals[cases_idx]
-    wd_vals = wd_vals[cases_idx]
-
     # Prepare reference arrays - average across turbines if turbine-specific
-    if "wind_turbine" in ws_dims:
-        ws = np.mean(ws_vals, axis=1)
-    else:
-        ws = ws_vals
+    ws, ws_dims_eff = _mean_over_turbines(ws_vals, ws_dims)
 
     if "wind_turbine" in wd_dims:
         # Vector mean for direction to handle 360/0 boundary
         rads = np.deg2rad(wd_vals)
-        mean_sin = np.mean(np.sin(rads), axis=1)
-        mean_cos = np.mean(np.cos(rads), axis=1)
+        wt_axis = wd_dims.index("wind_turbine")
+        mean_sin = np.mean(np.sin(rads), axis=wt_axis)
+        mean_cos = np.mean(np.cos(rads), axis=wt_axis)
         wd = np.mod(np.rad2deg(np.arctan2(mean_sin, mean_cos)), 360)
+        wd_dims_eff = [d for d in wd_dims if d != "wind_turbine"]
     else:
         wd = wd_vals
+        wd_dims_eff = wd_dims
 
     # Handle operating status
     if "operating" in wind_resource:
-        operating = np.array(wind_resource["operating"]["data"])[cases_idx].T
+        op_vals, op_dims = get_resource_data("operating", ("time", "wind_turbine"))
+        if "wind_turbine" in op_dims and op_dims.index("wind_turbine") != 0:
+            op_vals = op_vals.T
+        operating = op_vals
         assert operating.shape[0] == len(x_positions)
     else:
-        operating = np.ones((len(x_positions), len(cases_idx)))
+        operating = np.ones((len(x_positions), n_cases))
 
     # Handle multi-height interpolation
     additional_heights = []
-    hh = list(hub_heights.values())[0]
+    hh = first_hh = list(hub_heights.values())[0]
     site = None
 
     if len(hub_heights) > 1:
@@ -414,50 +592,50 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
             if hh in seen:
                 continue
             seen.append(hh)
-            ws_int, wd_int = _interpolate_wind_data(heights, ws, wd, hh)
-            speeds.append(ws_int)
-            dirs.append(wd_int)
-
-        ws, wd = ws_int, wd_int
-
-        # Handle TI interpolation
-        if "turbulence_intensity" not in wind_resource:
-            TI = 0.02
-        else:
-            TI_data = np.array(wind_resource["turbulence_intensity"]["data"])[cases_idx]
-            for hh in sorted(np.append(list(hub_heights.values()), additional_heights)):
-                if hh in seen[len(speeds) :]:
-                    continue
-                if heights:
-                    ti_int = _interpolate_with_min(heights, TI_data, hh, min_val=0.02)
-                else:
-                    ti_int = TI_data
-                TIs.append(ti_int)
-            TI = ti_int
-
-            data_vars = {
-                "WS": (["h", "time"], np.array(speeds)),
-                "WD": (["h", "time"], np.array(dirs)),
-                "TI": (["h", "time"], np.array(TIs)),
-                "P": 1,
-            }
-            if "density" in wind_resource:
-                density_vals = np.array(wind_resource["density"]["data"])[cases_idx]
-                density_dims = wind_resource["density"].get("dims", ["time"])
-                if "wind_turbine" in density_dims:
-                    density_vals = np.mean(density_vals, axis=1)
-                data_vars["Air_density"] = (["time"], density_vals)
-            site = XRSite(
-                xr.Dataset(
-                    data_vars=data_vars,
-                    coords={"h": seen, "time": np.arange(len(times))},
-                )
+            speeds.append(
+                _interp_along_height(ws, ws_dims_eff, heights, hh, min_val=0.0)
             )
+            dirs.append(_interp_direction_along_height(wd, wd_dims_eff, heights, hh))
+
+        ws, wd = speeds[-1], dirs[-1]
+
+        # Handle TI interpolation: one entry per unique height in `seen`
+        if "turbulence_intensity" in wind_resource:
+            TI_data, ti_dims = get_resource_data("turbulence_intensity")
+            if "wind_turbine" in ti_dims:
+                warnings.warn(
+                    "Per-turbine turbulence_intensity is averaged across "
+                    "turbines for the multi-hub-height time-series site; the "
+                    "farm-mean TI is used at every height"
+                )
+            TI_data, ti_dims = _mean_over_turbines(TI_data, ti_dims)
+            for hh in seen:
+                TIs.append(
+                    _interp_along_height(TI_data, ti_dims, heights, hh, min_val=0.02)
+                )
+            TI = TIs[-1]
+        else:
+            TI = 0.02
+            TIs = [np.full(np.shape(speeds[0]), TI) for _ in seen]
+
+        data_vars = {
+            "WS": (["h", "time"], np.array(speeds)),
+            "WD": (["h", "time"], np.array(dirs)),
+            "TI": (["h", "time"], np.array(TIs)),
+            "P": 1,
+        }
+        if "density" in wind_resource:
+            data_vars["Air_density"] = (["time"], get_density_series(first_hh))
+        site = XRSite(
+            xr.Dataset(
+                data_vars=data_vars,
+                coords={"h": seen, "time": np.arange(np.shape(speeds[0])[0])},
+            )
+        )
     else:
         # Single turbine type
-        print(np.array(ws).shape, np.array(heights).shape)
-        if heights:
-            ws, wd = _interpolate_wind_data(heights, ws, wd, hh)
+        ws = _interp_along_height(ws, ws_dims_eff, heights, hh, min_val=0.0)
+        wd = _interp_direction_along_height(wd, wd_dims_eff, heights, hh)
 
         assert len(np.array(times)[cases_idx]) == len(ws)
         assert len(wd) == len(ws)
@@ -467,16 +645,14 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
         else:
             site = Hornsrev1Site()
             if "density" in wind_resource:
-                density_vals = np.array(wind_resource["density"]["data"])[cases_idx]
-                site.ds["Air_density"] = (("time",), density_vals)
+                site.ds["Air_density"] = (("time",), get_density_series(hh))
 
-        # Handle TI
+        # Handle TI (kept per-turbine here; PyWake accepts turbine-resolved TI)
         if "turbulence_intensity" not in wind_resource:
             TI = 0.02
         else:
-            TI = np.array(wind_resource["turbulence_intensity"]["data"])[cases_idx]
-            if heights:
-                TI = interp1d(heights, TI, axis=1)(hh)
+            TI, ti_dims = get_resource_data("turbulence_intensity")
+            TI = _interp_along_height(TI, ti_dims, heights, hh, min_val=0.02)
 
     return {
         "site": site,
@@ -551,42 +727,52 @@ def _construct_weibull_site(resource_dat, hub_heights, x_positions):
     }
 
 
-def _interpolate_wind_data(heights, ws, wd, target_height):
-    """Interpolate wind speed and direction to target height.
+def _mean_over_turbines(vals, dims):
+    """Average a resource variable over its declared wind_turbine dim.
 
-    Handles automatic transpose for shape mismatches.
+    Returns the (possibly reduced) values and the dims list without the
+    wind_turbine entry, so downstream axis lookups stay consistent.
     """
+    if "wind_turbine" in dims:
+        vals = np.mean(vals, axis=dims.index("wind_turbine"))
+        dims = [d for d in dims if d != "wind_turbine"]
+    return vals, dims
+
+
+def _interp_along_height(vals, dims, heights, target_height, min_val=None):
+    """Interpolate a resource variable to target_height along its declared
+    height dim; variables without a height dim pass through unchanged.
+
+    min_val is a floor applied only when target_height lies outside the
+    declared height range (i.e. only to extrapolated values); in-range data
+    is never clamped.
+    """
+    if "height" not in dims:
+        return vals
     if heights is None:
-        return ws, wd
-
-    try:
-        ws_int = interp1d(heights, ws, axis=1, fill_value="extrapolate")(target_height)
-        wd_int = interp1d(heights, wd, axis=1, fill_value="extrapolate")(target_height)
-    except ValueError:
-        ws_int = interp1d(heights, np.array(ws).T, axis=1, fill_value="extrapolate")(
-            target_height
+        raise ValueError(
+            "A wind_resource variable declares a 'height' dim but the "
+            "wind_resource has no 'height' coordinate"
         )
-        wd_int = interp1d(heights, np.array(wd).T, axis=1, fill_value="extrapolate")(
-            target_height
-        )
-
-    return ws_int, wd_int
+    out = interp1d(heights, vals, axis=dims.index("height"), fill_value="extrapolate")(
+        target_height
+    )
+    if min_val is not None and not (
+        np.min(heights) <= target_height <= np.max(heights)
+    ):
+        out = np.maximum(out, min_val)
+    return out
 
 
-def _interpolate_with_min(heights, values, target_height, min_val=0.02):
-    """Interpolate values to target height with minimum value clipping."""
-    try:
-        return np.maximum(
-            interp1d(heights, values, axis=1, fill_value="extrapolate")(target_height),
-            min_val,
-        )
-    except ValueError:
-        return np.maximum(
-            interp1d(heights, np.array(values).T, axis=1, fill_value="extrapolate")(
-                target_height
-            ),
-            min_val,
-        )
+def _interp_direction_along_height(vals, dims, heights, target_height):
+    """Interpolate wind direction to target_height via its sine/cosine
+    components, so the 0/360 wraparound cannot produce spurious directions."""
+    if "height" not in dims:
+        return vals
+    rads = np.deg2rad(np.asarray(vals, dtype=float))
+    sin_int = _interp_along_height(np.sin(rads), dims, heights, target_height)
+    cos_int = _interp_along_height(np.cos(rads), dims, heights, target_height)
+    return np.mod(np.rad2deg(np.arctan2(sin_int, cos_int)), 360)
 
 
 def configure_wake_model(system_dat, rotor_diameter, hub_height):
@@ -908,15 +1094,12 @@ def run_simulation(site, turbine, wake_config, site_data, x, y, turbine_types):
     aep = sim_res.aep(normalize_probabilities=not site_data["timeseries"]).sum()
     print("aep is ", aep, "GWh")
 
-    # Calculate per-turbine AEP
-    if site_data["timeseries"]:
-        aep_per_turbine = (
-            sim_res.aep(normalize_probabilities=True).sum(["time"]).to_numpy()
-        )
-    else:
-        aep_per_turbine = (
-            sim_res.aep(normalize_probabilities=True).sum(["ws", "wd"]).to_numpy()
-        )
+    # Calculate per-turbine AEP on the same normalization basis as the total
+    aep_per_turbine = (
+        sim_res.aep(normalize_probabilities=not site_data["timeseries"])
+        .sum(["time"] if site_data["timeseries"] else ["ws", "wd"])
+        .to_numpy()
+    )
 
     print(sim_res)
 
@@ -1066,24 +1249,33 @@ def run_pywake(yaml_input, output_dir="output"):
         output_dir: Output directory (can be overridden in YAML config)
 
     Returns:
-        float: Total AEP in GWh
+        float: Total AEP in GWh (single farm), or
+        list[float]: AEP in GWh per farm, in input order (multi-farm input)
     """
     # Step 1: Load and validate configuration
     require("py_wake")
 
     system_dat, output_dir = load_and_validate_config(yaml_input, output_dir)
 
-    # Step 2: Create turbine objects
-    farm_dat = system_dat["wind_farm"]
-    turbine, turbine_types, hub_heights = create_turbines(farm_dat)
+    # Step 2: Create turbine objects (multi-farm aware)
+    farm_entry = system_dat["wind_farm"]
+    multi_farm = isinstance(farm_entry, list)
+    farms = farm_entry if multi_farm else [farm_entry]
 
-    # Get turbine positions
-    if isinstance(farm_dat["layouts"], list):
-        x = farm_dat["layouts"][0]["coordinates"]["x"]
-        y = farm_dat["layouts"][0]["coordinates"]["y"]
-    else:
-        x = farm_dat["layouts"]["coordinates"]["x"]
-        y = farm_dat["layouts"]["coordinates"]["y"]
+    (
+        turbine,
+        turbine_types,
+        hub_heights,
+        farm_slices,
+        rotor_diameter,
+    ) = _build_multifarm_turbines(farms)
+
+    # Get turbine positions across all farms
+    x, y = [], []
+    for farm_dat in farms:
+        coords = _farm_layout(farm_dat)["coordinates"]
+        x.extend(coords["x"])
+        y.extend(coords["y"])
 
     # Step 3: Construct site
     resource_dat = system_dat["site"]["energy_resource"]
@@ -1091,16 +1283,9 @@ def run_pywake(yaml_input, output_dir="output"):
     site = site_data["site"]
 
     # Step 4: Configure wake model
-    # Use first turbine's dimensions for FUGA LUT if needed
+    # First turbine type's dimensions are used for FUGA LUT generation if needed
     first_hh = list(hub_heights.values())[0]
-    # Get rotor diameter from farm data
-    if "turbines" in farm_dat:
-        rd = farm_dat["turbines"]["rotor_diameter"]
-    else:
-        first_key = list(farm_dat["turbine_types"].keys())[0]
-        rd = farm_dat["turbine_types"][first_key]["rotor_diameter"]
-
-    wake_config = configure_wake_model(system_dat, rd, first_hh)
+    wake_config = configure_wake_model(system_dat, rotor_diameter, first_hh)
 
     # Step 5: Run simulation
     sim_results = run_simulation(
@@ -1110,6 +1295,9 @@ def run_pywake(yaml_input, output_dir="output"):
     # Step 6: Generate outputs
     aep = generate_outputs(sim_results, system_dat, site_data, hub_heights, output_dir)
 
+    if multi_farm:
+        per_turbine = sim_results["aep_per_turbine"]
+        return [float(np.sum(per_turbine[s])) for s in farm_slices]
     return aep
 
 
