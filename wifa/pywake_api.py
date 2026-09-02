@@ -644,6 +644,12 @@ def _construct_timeseries_site(system_dat, resource_dat, hub_heights, x_position
             site = dict_to_site(wind_resource)
         else:
             site = Hornsrev1Site()
+            if "turbulence_intensity" in wind_resource:
+                # Hornsrev1Site ships a default TI=0.1 data variable, which
+                # would shadow the user's turbulence_intensity in
+                # run_simulation (TI is only passed as a simulation kwarg
+                # when the site has none). Drop it so the input TI is used.
+                site.ds = site.ds.drop_vars("TI")
             if "density" in wind_resource:
                 site.ds["Air_density"] = (("time",), get_density_series(hh))
 
