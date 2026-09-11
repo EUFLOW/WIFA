@@ -543,6 +543,41 @@ def test_pywake_multifarm_rowp_example(tmp_path):
     assert (tmp_path / "output.yaml").exists()
 
 
+def test_pywake_timeseries_ti_reaches_hornsrev_site(tmp_path):
+    """Time-series turbulence_intensity without a wind_turbine dim must reach
+    the simulation instead of being shadowed by Hornsrev1Site's default
+    TI=0.1 (issue #71): different input TI must change the AEP."""
+    from conftest import make_timeseries_per_turbine_system_dict
+
+    def build(ti_value):
+        system = make_timeseries_per_turbine_system_dict("pywake")
+        resource = system["site"]["energy_resource"]["wind_resource"]
+        n_times = len(resource["time"])
+        # collapse per-turbine variables to plain time series so the
+        # Hornsrev1Site branch is taken
+        for var in ("wind_speed", "wind_direction"):
+            data = np.array(resource[var]["data"]).mean(axis=1)
+            resource[var] = {"data": data.tolist(), "dims": ["time"]}
+        resource["turbulence_intensity"] = {
+            "data": [ti_value] * n_times,
+            "dims": ["time"],
+        }
+        del resource["operating"]
+        del resource["density"]
+        # TI-dependent wake expansion so the AEP is sensitive to TI
+        system["attributes"]["analysis"]["wind_deficit_model"][
+            "wake_expansion_coefficient"
+        ] = {"k_a": 0.5, "k_b": 0.5}
+        return system
+
+    aep_low = run_pywake(build(0.03), output_dir=str(tmp_path / "low"))
+    aep_high = run_pywake(build(0.30), output_dir=str(tmp_path / "high"))
+
+    assert np.isfinite(aep_low) and np.isfinite(aep_high)
+    # TI=0.1 default shadowing made these identical before the fix
+    assert abs(aep_low - aep_high) > 1e-6
+
+
 def test_run_api_returns_pywake_result(tmp_path, monkeypatch):
     """run_api must pass through the runner's return value (the upstream ROWP
     example script does `results = run_api(...)`)."""
