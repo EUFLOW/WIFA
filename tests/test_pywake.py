@@ -1118,6 +1118,70 @@ def test_pywake_dict_timeseries_per_turbine_with_density(tmp_path):
     assert aep_with != aep_without
 
 
+def test_pywake_statistical_flow_field(tmp_path):
+    """Flow field output for statistical (wind rose) input (GH issue #7)."""
+    from conftest import _ANALYSIS, _TURBINE
+
+    system = {
+        "name": "statistical flow field test",
+        "site": {
+            "name": "Test site",
+            "boundaries": {
+                "polygons": [{"x": [-100, 800, 800, -100], "y": [100, 100, -100, -100]}]
+            },
+            "energy_resource": {
+                "name": "Test resource",
+                "wind_resource": {
+                    "wind_direction": [270.0],
+                    "wind_speed": list(range(4, 26)),
+                    "weibull_a": {"data": [9.0], "dims": ["wind_direction"]},
+                    "weibull_k": {"data": [2.2], "dims": ["wind_direction"]},
+                    "sector_probability": {"data": [1.0], "dims": ["wind_direction"]},
+                    "turbulence_intensity": {
+                        "data": [0.07],
+                        "dims": ["wind_direction"],
+                    },
+                },
+            },
+        },
+        "wind_farm": {
+            "name": "Test farm",
+            "layouts": [{"coordinates": {"x": [0.0, 700.0], "y": [0.0, 0.0]}}],
+            "turbines": _TURBINE,
+        },
+        "attributes": {
+            "flow_model": {"name": "pywake"},
+            "analysis": _ANALYSIS,
+            "model_outputs_specification": {
+                "flow_field": {
+                    "report": True,
+                    "output_variables": ["velocity_u", "turbulence_intensity"],
+                    "z_planes": {
+                        "z_sampling": "hub_heights",
+                        "xy_sampling": "grid",
+                        "x_bounds": [-500.0, 1500.0],
+                        "y_bounds": [-400.0, 400.0],
+                        "dx": 100.0,
+                        "dy": 100.0,
+                    },
+                },
+            },
+        },
+    }
+
+    run_pywake(system, output_dir=str(tmp_path))
+
+    flow_file = tmp_path / "FarmFlow.nc"
+    assert flow_file.exists()
+    with xr.open_dataset(flow_file) as ds:
+        assert {"wind_speed", "turbulence_intensity"} <= set(ds.data_vars)
+        # requested x/y bounds are honored (windIO x_bounds/y_bounds keys)
+        assert float(ds.x.min()) == -500.0 and float(ds.x.max()) >= 1400.0
+        assert float(ds.y.min()) == -400.0 and float(ds.y.max()) >= 300.0
+        # flow field sampled at hub height
+        assert list(ds.z.values) == [_TURBINE["hub_height"]]
+
+
 # if __name__ == "__main__":
 #    test_heterogeneous_wind_rose()
 #     simple_yaml_to_pywake('../examples/cases/windio_4turbines_multipleTurbines/plant_energy_turbine/IEA_10MW_turbine.yaml')
