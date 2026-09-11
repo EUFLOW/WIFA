@@ -53,6 +53,20 @@ def run_floris(yaml_input):
             "supported by the pywake and foxes runners)"
         )
 
+    # windIO defines k = k_a + k_b * TI, but the pinned floris windIO reader
+    # maps k_a -> ka and k_b -> kb while FLORIS's own convention is
+    # k = ka * TI + kb. Swap the coefficients here so windIO semantics
+    # survive; drop this once the floris reader handles the convention
+    # itself (see EUFLOW/WIFA#69).
+    wec = (
+        windio_dict.get("attributes", {})
+        .get("analysis", {})
+        .get("wind_deficit_model", {})
+        .get("wake_expansion_coefficient")
+    )
+    if isinstance(wec, dict) and ("k_a" in wec or "k_b" in wec):
+        wec["k_a"], wec["k_b"] = wec.get("k_b", 0.0), wec.get("k_a", 0.04)
+
     fmodel = FlorisModel.from_windio(windio_dict)
     fmodel.run()
 
