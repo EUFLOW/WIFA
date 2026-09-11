@@ -543,6 +543,45 @@ def test_pywake_multifarm_rowp_example(tmp_path):
     assert (tmp_path / "output.yaml").exists()
 
 
+def test_get_with_default_keeps_user_keys():
+    """User-provided keys absent from DEFAULTS must survive (issue #70)."""
+    from wifa.pywake_api import get_with_default
+
+    defaults = {"model": {"name": "Jensen", "beta": 0.1}}
+    data = {"model": {"name": "TurbOPark", "custom_setting": 42}}
+    merged = get_with_default(data, "model", defaults)
+
+    assert merged["name"] == "TurbOPark"
+    assert merged["custom_setting"] == 42  # was silently dropped before
+    with pytest.warns(UserWarning, match="beta"):
+        merged = get_with_default(data, "model", defaults)
+    assert merged["beta"] == 0.1  # default fills the gap
+
+
+def test_configure_wake_model_use_effective_ws(tmp_path):
+    """wind_deficit_model.use_effective_ws must reach PyWake (issue #70)."""
+    import copy
+
+    from conftest import _ANALYSIS
+
+    from wifa.pywake_api import configure_wake_model
+
+    def make_system(use_eff):
+        analysis = copy.deepcopy(_ANALYSIS)
+        analysis["wind_deficit_model"]["use_effective_ws"] = use_eff
+        return {"attributes": {"analysis": analysis}}
+
+    for use_eff in (True, False):
+        config = configure_wake_model(make_system(use_eff), 100.0, 100.0)
+        assert config["deficit_args"]["use_effective_ws"] is use_eff
+
+    # default stays True when unset
+    config = configure_wake_model(
+        {"attributes": {"analysis": copy.deepcopy(_ANALYSIS)}}, 100.0, 100.0
+    )
+    assert config["deficit_args"]["use_effective_ws"] is True
+
+
 def test_run_api_returns_pywake_result(tmp_path, monkeypatch):
     """run_api must pass through the runner's return value (the upstream ROWP
     example script does `results = run_api(...)`)."""
