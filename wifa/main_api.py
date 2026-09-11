@@ -14,37 +14,60 @@ from .wayve_api import run_wayve
 sys.path.append(windIO.__path__[0])
 
 
-def run_api(yaml_input):
+def run_api(yaml_input, warn_unused=True):
+    """Dispatch a windIO wind energy system to the configured flow model.
+
+    Args:
+        yaml_input: Path to a windIO YAML file or a pre-parsed dict.
+        warn_unused: When True (default), the input is wrapped so key
+            accesses are tracked, and after the run a warning lists every
+            input key the selected runner never consumed. This enforces a
+            user contract: a parameter either influenced the simulation or
+            is explicitly reported as ignored.
+
+    Returns:
+        Whatever the selected runner returns (e.g. AEP for pywake; a list
+        of per-farm AEPs for multi-farm input).
+    """
+    from .windio_contract import TrackedDict, report_unread
+
     if isinstance(yaml_input, dict):
         yaml_dat = yaml_input
     else:
         yaml_dat = validate_yaml(yaml_input, "plant/wind_energy_system")
 
+    if warn_unused:
+        yaml_dat = TrackedDict(yaml_dat)
+
     model_name = yaml_dat["attributes"]["flow_model"]["name"]
 
-    if model_name.lower() == "pywake":
-        run_pywake(yaml_dat)
+    try:
+        if model_name.lower() == "pywake":
+            return run_pywake(yaml_dat)
 
-    elif model_name.lower() == "foxes":
-        run_foxes(yaml_dat)
+        elif model_name.lower() == "foxes":
+            return run_foxes(yaml_dat)
 
-    elif model_name.lower() == "floris":
-        run_floris(yaml_dat)
+        elif model_name.lower() == "floris":
+            return run_floris(yaml_dat)
 
-    elif model_name.lower() == "wayve":
-        output_dir_name = yaml_dat["attributes"]["model_outputs_specification"][
-            "output_folder"
-        ]
-        if not os.path.exists(output_dir_name):
-            os.makedirs(output_dir_name)
+        elif model_name.lower() == "wayve":
+            output_dir_name = yaml_dat["attributes"]["model_outputs_specification"][
+                "output_folder"
+            ]
+            if not os.path.exists(output_dir_name):
+                os.makedirs(output_dir_name)
 
-        run_wayve(yaml_dat, output_dir_name)
+            return run_wayve(yaml_dat, output_dir_name)
 
-    elif model_name.lower() == "codesaturne":
-        run_code_saturne(yaml_dat, test_mode=True)
+        elif model_name.lower() == "codesaturne":
+            return run_code_saturne(yaml_dat, test_mode=True)
 
-    else:
-        print("Invalid Model")
+        else:
+            print("Invalid Model")
+    finally:
+        if warn_unused:
+            report_unread(yaml_dat, model_name)
 
 
 def run():

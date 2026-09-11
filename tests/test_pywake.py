@@ -543,6 +543,22 @@ def test_pywake_multifarm_rowp_example(tmp_path):
     assert (tmp_path / "output.yaml").exists()
 
 
+def test_run_api_returns_pywake_result(tmp_path, monkeypatch):
+    """run_api must pass through the runner's return value (the upstream ROWP
+    example script does `results = run_api(...)`)."""
+    from wifa.main_api import run_api
+
+    yaml_input = (
+        test_path
+        / "../examples/cases/multiple_wind_farms/wind_energy_system/system.yaml"
+    )
+    monkeypatch.chdir(tmp_path)  # run_api writes to ./output
+    results = run_api(str(yaml_input))
+
+    assert isinstance(results, list) and len(results) == 3
+    assert all(np.isfinite(a) and a > 0 for a in results)
+
+
 def test_pywake_multifarm_sum_matches_total(tmp_path):
     """Per-farm AEPs must sum to the AEP of the merged single-farm run."""
     system = _two_farm_system_dict()
