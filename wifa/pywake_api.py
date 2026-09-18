@@ -891,23 +891,34 @@ def _configure_deficit_model(
     wake_deficit_key = None
     model_name = wind_deficit_data["name"]
 
+    # windIO convention: k = k_a + k_b * TI (k_a = baseline expansion,
+    # k_b = factor multiplying TI); see the wind_energy_system schema.
     if model_name == "Jensen":
         wake_model_class = NOJLocalDeficit
         wake_expansion = analysis.get("wind_deficit_model", {}).get(
             "wake_expansion_coefficient", {}
         )
-        if "k_b" in wake_expansion:
-            k_a = wake_expansion.get("k_a", 0)
-            k_b = wake_expansion["k_b"]
-            deficit_args["a"] = [k_a, k_b]
+        if "k_a" in wake_expansion or "k_b" in wake_expansion:
+            k_a = wake_expansion.get("k_a", 0.04)
+            k_b = wake_expansion.get("k_b", 0.0)
+            # PyWake's NOJLocalDeficit computes k = a[1] + a[0] * TI
+            deficit_args["a"] = [k_b, k_a]
 
     elif model_name.lower() == "bastankhah2014":
         wake_model_class = BastankhahGaussianDeficit
         wake_expansion = analysis.get("wind_deficit_model", {}).get(
             "wake_expansion_coefficient", {}
         )
-        if "k_b" in wake_expansion:
-            deficit_args["k"] = wake_expansion["k_b"]
+        if "k_a" in wake_expansion:
+            # BastankhahGaussianDeficit takes a constant k: the windIO
+            # baseline coefficient. A TI-dependent term is not supported.
+            deficit_args["k"] = wake_expansion["k_a"]
+            if wake_expansion.get("k_b", 0.0):
+                warnings.warn(
+                    "Bastankhah2014 in PyWake uses a constant wake expansion "
+                    "k = k_a; the TI-dependent k_b term "
+                    f"({wake_expansion['k_b']}) is ignored"
+                )
         elif "k" in wake_expansion:
             deficit_args["k"] = wake_expansion["k"]
         if "ceps" in analysis.get("wind_deficit_model", {}):

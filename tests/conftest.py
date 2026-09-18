@@ -136,7 +136,7 @@ _LAYOUT_Y = [0, 0, 0]
 _ANALYSIS = {
     "wind_deficit_model": {
         "name": "Jensen",
-        "wake_expansion_coefficient": {"k_a": 0.0, "k_b": 0.04},
+        "wake_expansion_coefficient": {"k_a": 0.04, "k_b": 0.0},
     },
     "deflection_model": {"name": "None"},
     "turbulence_model": {"name": "STF2005", "c1": 1.0, "c2": 1.0},
