@@ -393,7 +393,7 @@ def get_flow_field_param(system_dat, param_name, default=None):
 
     Args:
         system_dat: System data dictionary
-        param_name: Name of parameter to extract (e.g., 'xlb', 'dx')
+        param_name: Name of parameter to extract (e.g., 'x_bounds', 'dx')
         default: Default value if parameter not found
 
     Returns:
@@ -432,10 +432,9 @@ def construct_site(system_dat, resource_dat, hub_heights, x_positions):
     WFYUB = np.max(boundaries["y"])
 
     # Override with explicit flow field bounds if specified
-    WFXLB = get_flow_field_param(system_dat, "xlb", WFXLB)
-    WFXUB = get_flow_field_param(system_dat, "xub", WFXUB)
-    WFYLB = get_flow_field_param(system_dat, "ylb", WFYLB)
-    WFYUB = get_flow_field_param(system_dat, "yub", WFYUB)
+    # (windIO z_planes uses x_bounds/y_bounds pairs)
+    WFXLB, WFXUB = get_flow_field_param(system_dat, "x_bounds", (WFXLB, WFXUB))
+    WFYLB, WFYUB = get_flow_field_param(system_dat, "y_bounds", (WFYLB, WFYUB))
     WFDX = get_flow_field_param(system_dat, "dx", (WFXUB - WFXLB) / 100)
     WFDY = get_flow_field_param(system_dat, "dy", (WFYUB - WFYLB) / 100)
 
